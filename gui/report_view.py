@@ -1,0 +1,106 @@
+"""
+Komponen GUI: Jendela Laporan Hasil Pemrosesan (Report Dialog).
+Menampilkan ringkasan eksekutif dokumen dan statistik penggantian per kategori.
+"""
+import os
+import tkinter as tk
+from tkinter import ttk
+from services.report_service import ReportService
+
+
+class ReportDialog(tk.Toplevel):
+    def __init__(self, parent: tk.Tk, report_service: ReportService, output_dir: str):
+        super().__init__(parent)
+        self.title("Laporan Hasil Pemrosesan Dokumen - Smart RPP Replacer")
+        self.geometry("720x540")
+        self.minsize(620, 440)
+        self.transient(parent)
+        self.grab_set()
+
+        self.report_service = report_service
+        self.output_dir = output_dir
+
+        self._build_ui()
+
+    def _build_ui(self):
+        # 1. Header
+        header = ttk.Frame(self, padding=(14, 12))
+        header.pack(fill="x")
+        ttk.Label(
+            header,
+            text="Laporan Rekapitulasi Pemrosesan RPP",
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w")
+        ttk.Label(
+            header,
+            text=f"Folder Penyimpanan: {self.output_dir}",
+            foreground="#555555"
+        ).pack(anchor="w", pady=(2, 0))
+
+        # 2. Kartu Ringkasan Metrik
+        metrics_frame = ttk.LabelFrame(self, text=" Ringkasan Dokumen ", padding=10)
+        metrics_frame.pack(fill="x", padx=14, pady=5)
+        for i in range(5):
+            metrics_frame.columnconfigure(i, weight=1)
+
+        cards = [
+            ("Dipindai", self.report_service.total_scanned, "#1e1e1e"),
+            ("Berhasil", self.report_service.succeeded, "#007700"),
+            ("Tidak Berubah", self.report_service.unchanged, "#555555"),
+            ("Perlu Tinjau", self.report_service.needs_review, "#b38600"),
+            ("Gagal", self.report_service.failed, "#cc0000"),
+        ]
+
+        for col, (label, val, color) in enumerate(cards):
+            card = ttk.Frame(metrics_frame, padding=6)
+            card.grid(row=0, column=col, sticky="ew")
+            lbl_val = ttk.Label(card, text=str(val), font=("Segoe UI", 14, "bold"), foreground=color)
+            lbl_val.pack()
+            lbl_name = ttk.Label(card, text=label, font=("Segoe UI", 8))
+            lbl_name.pack()
+
+        # 3. Rincian Penggantian per Kategori
+        detail_frame = ttk.LabelFrame(self, text=" Rincian Penggantian per Kategori ", padding=10)
+        detail_frame.pack(fill="both", expand=True, padx=14, pady=8)
+
+        cols = ("category", "count")
+        tree = ttk.Treeview(detail_frame, columns=cols, show="headings", height=8)
+        tree.heading("category", text="Kategori Data")
+        tree.heading("count", text="Jumlah Penggantian")
+        tree.column("category", width=340, anchor="w")
+        tree.column("count", width=120, anchor="center")
+
+        sb = ttk.Scrollbar(detail_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=sb.set)
+
+        tree.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        if self.report_service.category_counts:
+            for cat, count in sorted(self.report_service.category_counts.items(), key=lambda x: x[1], reverse=True):
+                tree.insert("", "end", values=(cat, f"{count} titik"))
+        else:
+            tree.insert("", "end", values=("(Tidak ada penggantian)", "0"))
+
+        # 4. Tombol Aksi Bawah
+        bottom = ttk.Frame(self, padding=(14, 12))
+        bottom.pack(fill="x")
+
+        ttk.Button(bottom, text="Buka Folder Hasil", command=self._open_folder).pack(side="left", padx=(0, 6))
+        ttk.Button(bottom, text="Buka File Laporan (.txt)", command=self._open_report_file).pack(side="left")
+
+        ttk.Button(bottom, text="Tutup", command=self.destroy).pack(side="right")
+
+    def _open_folder(self):
+        try:
+            os.startfile(self.output_dir)
+        except Exception:
+            pass
+
+    def _open_report_file(self):
+        report_path = os.path.join(self.output_dir, "LAPORAN_PENGGANTIAN_RPP.txt")
+        if os.path.isfile(report_path):
+            try:
+                os.startfile(report_path)
+            except Exception:
+                pass

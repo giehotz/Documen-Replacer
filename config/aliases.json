@@ -1,0 +1,68 @@
+{
+  "Nama Kepala": [
+    "Kepala Madrasah",
+    "Kepala Sekolah",
+    "Nama Kepala",
+    "Mengetahui Kepala",
+    "Plt. Kepala Sekolah",
+    "Plt. Kepala Madrasah",
+    "Plt. Kepala"
+  ],
+  "NIP Kepala": [
+    "NIP Kepala",
+    "NIP Kepala Sekolah",
+    "NIP Kepala Madrasah",
+    "NIP."
+  ],
+  "Nama Guru": [
+    "Nama Penyusun",
+    "Guru Penyusun",
+    "Disusun Oleh",
+    "Nama Guru",
+    "Guru Kelas",
+    "Guru Mata Pelajaran",
+    "Guru Bidang Studi",
+    "Pendidik",
+    "Wali Kelas",
+    "Penyusun"
+  ],
+  "NIP Guru": [
+    "NIP Guru Mata Pelajaran",
+    "NIP Guru Kelas",
+    "NIP Guru",
+    "NUPTK",
+    "Identitas Guru",
+    "NIP Penyusun"
+  ],
+  "Nama Madrasah": [
+    "Nama Sekolah",
+    "Satuan Pendidikan",
+    "Nama Madrasah",
+    "Unit Kerja",
+    "Instansi"
+  ],
+  "Jabatan Kepala": [
+    "Kepala Sekolah",
+    "Kepala Madrasah",
+    "Plt. Kepala"
+  ],
+  "Tahun Ajaran": [
+    "Tahun Pelajaran",
+    "Tahun Ajaran",
+    "TP",
+    "Th. Pelajaran",
+    "Tahun Ajaran/Pelajaran"
+  ],
+  "Semester": [
+    "Semester",
+    "Semester Ganjil",
+    "Semester Genap",
+    "Smt"
+  ],
+  "Titimangsa": [
+    "Titimangsa",
+    "Tempat, Tanggal",
+    "Tanggal Pengesahan",
+    "Tanggal"
+  ]
+}

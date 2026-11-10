@@ -1,0 +1,71 @@
+"""
+Modul Lapis 5: Similarity Matcher (Fuzzy Matching).
+Menggunakan pustaka standar difflib untuk menghitung rasio kemiripan teks
+dan menangkap salah ketik (typo) pada label dokumen tanpa ketergantungan eksternal.
+"""
+from typing import Dict, List, Optional, Tuple
+import difflib
+import re
+
+from core.label_recognizer import normalize_string
+
+
+def calculate_similarity(s1: str, s2: str) -> float:
+    """Menghitung rasio kemiripan antara dua string (0.0 sampai 1.0)."""
+    norm1 = normalize_string(s1)
+    norm2 = normalize_string(s2)
+    if not norm1 or not norm2:
+        return 0.0
+    if norm1 == norm2:
+        return 1.0
+    return difflib.SequenceMatcher(None, norm1, norm2).ratio()
+
+
+def find_fuzzy_category_match(
+    text: str,
+    aliases: Dict[str, List[str]],
+    threshold: float = 0.80,
+) -> Tuple[Optional[str], float, str]:
+    """
+    Mencari kategori dengan alias yang paling mirip dengan teks input.
+    Mengembalikan: (kategori_terbaik, skor_kemiripan, alias_yang_cocok)
+    Jika skor tertinggi < threshold, mengembalikan (None, 0.0, "").
+    """
+    clean_text = normalize_string(text)
+    if not clean_text:
+        return None, 0.0, ""
+
+    best_cat: Optional[str] = None
+    best_score: float = 0.0
+    best_alias: str = ""
+
+    # Uji kecocokan langsung per frasa atau potongan teks jika teks panjang
+    words = clean_text.split()
+    for cat, alias_list in aliases.items():
+        for al in alias_list:
+            clean_al = normalize_string(al)
+            if not clean_al:
+                continue
+
+            # 1. Bandingkan langsung
+            score = difflib.SequenceMatcher(None, clean_text, clean_al).ratio()
+            if score > best_score:
+                best_score = score
+                best_cat = cat
+                best_alias = al
+
+            # 2. Bandingkan n-gram kata jika teks dokumen lebih panjang dari alias
+            al_len = len(clean_al.split())
+            if len(words) >= al_len:
+                for i in range(len(words) - al_len + 1):
+                    window = " ".join(words[i : i + al_len])
+                    win_score = difflib.SequenceMatcher(None, window, clean_al).ratio()
+                    if win_score > best_score:
+                        best_score = win_score
+                        best_cat = cat
+                        best_alias = al
+
+    if best_score >= threshold:
+        return best_cat, best_score, best_alias
+
+    return None, best_score, ""

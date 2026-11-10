@@ -1,0 +1,17 @@
+====================================================
+            LAPORAN PEMROSESAN RPP                  
+====================================================
+Waktu Pemrosesan      : 10-11-2026 18:58:58
+
+RINGKASAN DOKUMEN
+Total dokumen dipindai : 13
+Berhasil diperbarui    : 13
+Tidak berubah          : 0
+Perlu pemeriksaan      : 0
+Gagal diproses         : 0
+----------------------------------------------------
+RINCIAN PENGGANTIAN PER KATEGORI
+Total penggantian teks : 0 titik
+
+- (Tidak ada penggantian yang dilakukan)
+====================================================

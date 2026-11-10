@@ -1,0 +1,29 @@
+# --- Diabaikan sesuai permintaan ---
+/tests/
+/PANDUAN_PENGGUNAAN.md
+/docs/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environment ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# --- File sementara Word ---
+~$*.docx

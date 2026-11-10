@@ -1,0 +1,11 @@
+{
+  "enabled_kepala": false,
+  "kepala_image_path": "",
+  "kepala_width_cm": 3.5,
+  "enabled_guru": false,
+  "guru_image_path": "",
+  "guru_width_cm": 3.5,
+  "alignment": "CENTER",
+  "spacing_before_pt": 2,
+  "spacing_after_pt": 2
+}
