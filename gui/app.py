@@ -6,6 +6,7 @@ Mengintegrasikan:
 - Layanan pelaporan eksekutif (ReportService & ReportDialog)
 """
 import os
+import shutil
 import queue
 import threading
 import tkinter as tk
@@ -224,18 +225,32 @@ class SmartRPPReplacerApp:
             ):
                 return
 
-        rules = self.replacement_view.get_rules()
-        has_target = any(r.get("new", "").strip() for r in rules)
-        if not has_target:
-            messagebox.showwarning("Peringatan", "Isi minimal satu kolom 'Teks Baru' sebagai target penggantian!")
-            return
+        mode = self.replacement_view.get_search_mode()
+
+        if mode == "SIGNATURE_ONLY":
+            from core.signature_image_service import load_signature_settings
+            sig_cfg = load_signature_settings()
+            en_k = sig_cfg.get("enabled_kepala", False) and os.path.isfile(sig_cfg.get("kepala_image_path", ""))
+            en_g = sig_cfg.get("enabled_guru", False) and os.path.isfile(sig_cfg.get("guru_image_path", ""))
+            if not (en_k or en_g):
+                messagebox.showwarning(
+                    "Peringatan Tanda Tangan",
+                    "Mode 'Hanya Sisipkan Tanda Tangan' aktif, tetapi belum ada tanda tangan digital yang diaktifkan atau file gambarnya tidak ditemukan.\n\nSilakan klik tombol '✍ Atur Tanda Tangan Digital...' terlebih dahulu untuk memilih gambar dan mengaktifkannya."
+                )
+                return
+            rules = []
+        else:
+            rules = self.replacement_view.get_rules()
+            has_target = any(r.get("new", "").strip() for r in rules)
+            if not has_target:
+                messagebox.showwarning("Peringatan", "Isi minimal satu kolom 'Teks Baru' sebagai target penggantian!")
+                return
 
         files = self._collect_files(in_dir, out_dir, self.sub_var.get())
         if not files:
             messagebox.showinfo("Info", "Tidak ditemukan file .docx di folder input.")
             return
 
-        mode = self.replacement_view.get_search_mode()
         case_sensitive = self.case_var.get()
         use_preview = self.preview_var.get()
         skip_low = self.skip_low_var.get()
@@ -298,8 +313,8 @@ class SmartRPPReplacerApp:
                     self.report_service.record_document(rel, "SUCCESS", changes, cat_breakdown)
                     self.msg_queue.put(("log", f"[BERHASIL] {rel} ({changes} titik diganti)"))
                 else:
-                    # Tidak ada perubahan disetujui untuk file ini
-                    self.engine.apply_approved_changes(full, out_file, [])
+                    # Tidak ada perubahan disetujui untuk file ini (S2: Salin cepat tanpa re-kompresi)
+                    shutil.copy2(full, out_file)
                     self.report_service.record_document(rel, "UNCHANGED", 0)
                     self.msg_queue.put(("log", f"[TIDAK BERUBAH] {rel}"))
             except PermissionError:
@@ -319,18 +334,24 @@ class SmartRPPReplacerApp:
             out_file = os.path.join(out_dir, rel)
             try:
                 os.makedirs(os.path.dirname(out_file), exist_ok=True)
-                changes = self.engine.process_file(
-                    in_path=full,
-                    out_path=out_file,
-                    rules=rules,
-                    mode=mode,
-                    case_sensitive=case_sensitive,
-                    skip_low_confidence=skip_low
-                )
-                if changes > 0:
-                    self.report_service.record_document(rel, "SUCCESS", changes)
+                # S3: Hitung breakdown kategori agar laporan eksekutif lengkap di mode langsung
+                plan_items = self.engine.plan_document_changes(full, rel, rules, mode, case_sensitive)
+                approved = []
+                cat_breakdown: Dict[str, int] = {}
+                for it in plan_items:
+                    if skip_low and it.confidence == ConfidenceLevel.LOW:
+                        it.is_approved = False
+                    else:
+                        it.is_approved = True
+                        cat_breakdown[it.category] = cat_breakdown.get(it.category, 0) + 1
+                    approved.append(it)
+
+                if any(it.is_approved for it in approved):
+                    changes = self.engine.apply_approved_changes(full, out_file, approved)
+                    self.report_service.record_document(rel, "SUCCESS", changes, cat_breakdown)
                     self.msg_queue.put(("log", f"[BERHASIL] {rel} ({changes} titik diganti)"))
                 else:
+                    shutil.copy2(full, out_file)
                     self.report_service.record_document(rel, "UNCHANGED", 0)
                     self.msg_queue.put(("log", f"[TIDAK BERUBAH] {rel}"))
             except PermissionError:

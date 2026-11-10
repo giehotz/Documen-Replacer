@@ -16,7 +16,7 @@ class ReplacementView(ttk.LabelFrame):
             padding=10,
             **kwargs
         )
-        self.rows_data: List[Tuple[ttk.Entry, ttk.Entry, ttk.Entry, ttk.Frame]] = []
+        self.rows_data: List[Tuple[ttk.Entry, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]] = []
 
         self.search_mode_var = tk.StringVar(value="GABUNGAN")
 
@@ -40,26 +40,44 @@ class ReplacementView(ttk.LabelFrame):
         mode_frame = ttk.LabelFrame(self, text=" Mode Pencarian & Deteksi ", padding=(8, 4))
         mode_frame.pack(fill="x", pady=(0, 8))
 
-        modes = [
+        row1 = ttk.Frame(mode_frame)
+        row1.pack(fill="x", pady=1)
+        row2 = ttk.Frame(mode_frame)
+        row2.pack(fill="x", pady=(2, 1))
+
+        modes_text = [
             ("Gabungan (Disarankan: Exact Match lalu Cerdas Otomatis)", "GABUNGAN"),
             ("Pencarian Persis Saja (Exact Match)", "PERSIS"),
             ("Otomatis Cerdas Murni (Abaikan Teks Lama)", "OTOMATIS"),
         ]
-        for text, val in modes:
+        for text, val in modes_text:
             ttk.Radiobutton(
-                mode_frame,
+                row1,
                 text=text,
                 value=val,
-                variable=self.search_mode_var
-            ).pack(side="left", padx=10, pady=2)
+                variable=self.search_mode_var,
+                command=self._on_mode_changed
+            ).pack(side="left", padx=10, pady=1)
+
+        ttk.Radiobutton(
+            row2,
+            text="✍ Hanya Sisipkan Tanda Tangan (Tanpa Ubah Teks Dokumen Yang Sudah Diedit)",
+            value="SIGNATURE_ONLY",
+            variable=self.search_mode_var,
+            command=self._on_mode_changed
+        ).pack(side="left", padx=10, pady=1)
 
         # 2. Bar Tombol Aksi Preset & Tambah Baris
         bar = ttk.Frame(self)
         bar.pack(fill="x", pady=(0, 6))
-        ttk.Button(bar, text="+ Tambah Baris Kustom", command=lambda: self.add_row("Kustom", "", "")).pack(side="left")
-        ttk.Button(bar, text="✍ Atur Tanda Tangan Digital...", command=self._open_signature_designer).pack(side="left", padx=(10, 0))
-        ttk.Button(bar, text="Simpan Profil (.json)", command=self.save_preset).pack(side="right", padx=(5, 0))
-        ttk.Button(bar, text="Muat Profil (.json)", command=self.load_preset).pack(side="right")
+        self.btn_add_row = ttk.Button(bar, text="+ Tambah Baris Kustom", command=lambda: self.add_row("Kustom", "", ""))
+        self.btn_add_row.pack(side="left")
+        self.btn_sig_designer = ttk.Button(bar, text="✍ Atur Tanda Tangan Digital...", command=self._open_signature_designer)
+        self.btn_sig_designer.pack(side="left", padx=(10, 0))
+        self.btn_save_preset = ttk.Button(bar, text="Simpan Profil (.json)", command=self.save_preset)
+        self.btn_save_preset.pack(side="right", padx=(5, 0))
+        self.btn_load_preset = ttk.Button(bar, text="Muat Profil (.json)", command=self.load_preset)
+        self.btn_load_preset.pack(side="right")
 
         # 3. Header Kolom
         header = ttk.Frame(self)
@@ -126,7 +144,13 @@ class ReplacementView(ttk.LabelFrame):
         )
         btn_del.grid(row=0, column=3, padx=3)
 
-        self.rows_data.append((lbl, old, new, frame))
+        if self.search_mode_var.get() == "SIGNATURE_ONLY":
+            lbl.configure(state="disabled")
+            old.configure(state="disabled")
+            new.configure(state="disabled")
+            btn_del.configure(state="disabled")
+
+        self.rows_data.append((lbl, old, new, frame, btn_del))
 
     def remove_row(self, target_frame):
         for item in self.rows_data:
@@ -135,9 +159,34 @@ class ReplacementView(ttk.LabelFrame):
                 self.rows_data.remove(item)
                 break
 
+    def _set_replacement_rules_state(self, state: str):
+        """Mengubah status input rules (normal / disabled)."""
+        self.btn_add_row.configure(state=state)
+        self.btn_save_preset.configure(state=state)
+        self.btn_load_preset.configure(state=state)
+        for lbl, old, new, frame, btn_del in self.rows_data:
+            try:
+                lbl.configure(state=state)
+                old.configure(state=state)
+                new.configure(state=state)
+                btn_del.configure(state=state)
+            except Exception:
+                pass
+
+    def _on_mode_changed(self):
+        """Dipanggil saat radio button mode pencarian berubah."""
+        mode = self.search_mode_var.get()
+        if mode == "SIGNATURE_ONLY":
+            self.configure(text=" 2. Aturan Penggantian Data [NONAKTIF: Mode Hanya Sisipkan Tanda Tangan Tanpa Ubah Teks] ")
+            self._set_replacement_rules_state("disabled")
+        else:
+            self.configure(text=" 2. Aturan Penggantian Data (Kolom 'Teks Lama' opsional / otomatis dicari jika kosong) ")
+            self._set_replacement_rules_state("normal")
+
     def get_rules(self) -> List[Dict[str, str]]:
         rules = []
-        for lbl, old, new, _ in self.rows_data:
+        for item in self.rows_data:
+            lbl, old, new = item[0], item[1], item[2]
             k_lbl = lbl.get().strip()
             k_old = old.get().strip()
             k_new = new.get().strip()
@@ -184,8 +233,8 @@ class ReplacementView(ttk.LabelFrame):
             return
 
         # Hapus baris lama
-        for _, _, _, frame in list(self.rows_data):
-            frame.destroy()
+        for item in list(self.rows_data):
+            item[3].destroy()
         self.rows_data.clear()
 
         for item in data:

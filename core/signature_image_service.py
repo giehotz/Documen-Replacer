@@ -7,17 +7,25 @@ Menangani:
 from typing import Dict, Any, Optional
 import os
 import json
+import logging
 from docx.shared import Cm, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "enabled_kepala": False,
     "kepala_image_path": "",
     "kepala_width_cm": 3.5,
+    "offset_x_kepala_cm": 0.0,
+    "offset_y_kepala_cm": 0.0,
     "enabled_guru": False,
     "guru_image_path": "",
     "guru_width_cm": 3.5,
+    "offset_x_guru_cm": 0.0,
+    "offset_y_guru_cm": 0.0,
     "alignment": "CENTER",
+    "behind_text": True,
     "spacing_before_pt": 2,
     "spacing_after_pt": 2,
 }
@@ -63,10 +71,15 @@ def insert_signature_picture(
     alignment: str = "CENTER",
     spacing_before_pt: int = 2,
     spacing_after_pt: int = 2,
+    behind_text: bool = True,
+    offset_x_cm: float = 0.0,
+    offset_y_cm: float = 0.0,
+    cell_width_emu: Optional[int] = None,
 ) -> bool:
     """
     Menyisipkan berkas gambar tanda tangan ke dalam objek Paragraph python-docx.
-    Mengatur lebar gambar, perataan horizontal, dan spasi sebelum/setelah paragraf.
+    Mendukung mode 'Behind Text' (di belakang teks) dengan offset X & Y (geser kanan/kiri/atas/bawah),
+    atau mode inline biasa.
     """
     if not image_path or not os.path.isfile(image_path):
         return False
@@ -78,14 +91,80 @@ def insert_signature_picture(
     }
 
     try:
-        paragraph.alignment = align_map.get(alignment.upper(), WD_ALIGN_PARAGRAPH.CENTER)
-        paragraph.paragraph_format.space_before = Pt(spacing_before_pt)
-        paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
+        if not behind_text:
+            paragraph.alignment = align_map.get(alignment.upper(), WD_ALIGN_PARAGRAPH.CENTER)
+            paragraph.paragraph_format.space_before = Pt(spacing_before_pt)
+            paragraph.paragraph_format.space_after = Pt(spacing_after_pt)
 
-        # Bersihkan teks paragraf jika ada
-        paragraph.text = ""
+            if paragraph.runs:
+                for r in paragraph.runs[1:]:
+                    r.text = ""
+                run = paragraph.runs[0]
+                run.text = ""
+            else:
+                run = paragraph.add_run()
+
+            run.add_picture(image_path, width=Cm(width_cm))
+            return True
+
+        # Mode Behind Text (Di Belakang Teks) via DrawingML wp:anchor
+        from docx.oxml import parse_xml
         run = paragraph.add_run()
-        run.add_picture(image_path, width=Cm(width_cm))
+        inline_shape = run.add_picture(image_path, width=Cm(width_cm))
+        inline_elem = inline_shape._inline
+        extent = inline_elem.extent
+        cx = extent.cx
+        cy = extent.cy
+        docPr = inline_elem.docPr
+        doc_id = docPr.id
+        doc_name = docPr.name
+        graphic = inline_elem.graphic
+
+        # Hitung posisi horizontal (X) di dalam kolom sel tabel
+        cell_w = cell_width_emu if (cell_width_emu and cell_width_emu > 0) else int(8.0 * 360000)
+        al_upper = alignment.upper()
+        if al_upper == "LEFT":
+            base_x = 0
+        elif al_upper == "RIGHT":
+            base_x = max(0, cell_w - cx)
+        else:  # CENTER
+            base_x = max(0, int((cell_w - cx) / 2))
+
+        x_emu = int(base_x + offset_x_cm * 360000)
+
+        # Hitung posisi vertikal (Y) relatif terhadap paragraf nama
+        # Nilai negatif menaikkan gambar ke atas nama, nilai positif menurunkan
+        base_y = -int(cy * 0.85)
+        y_emu = int(base_y + offset_y_cm * 360000)
+
+        anchor_xml = f'''<wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+                   xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+                   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+                   distT="0" distB="0" distL="0" distR="0"
+                   simplePos="0" relativeHeight="251658240"
+                   behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1">
+            <wp:simplePos x="0" y="0"/>
+            <wp:positionH relativeFrom="column">
+                <wp:posOffset>{x_emu}</wp:posOffset>
+            </wp:positionH>
+            <wp:positionV relativeFrom="paragraph">
+                <wp:posOffset>{y_emu}</wp:posOffset>
+            </wp:positionV>
+            <wp:extent cx="{cx}" cy="{cy}"/>
+            <wp:effectExtent l="0" t="0" r="0" b="0"/>
+            <wp:wrapNone/>
+            <wp:docPr id="{doc_id}" name="{doc_name}"/>
+            <wp:cNvGraphicFramePr>
+                <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+            </wp:cNvGraphicFramePr>
+        </wp:anchor>'''
+
+        anchor_elem = parse_xml(anchor_xml)
+        anchor_elem.append(graphic)
+
+        drawing_elem = inline_elem.getparent()
+        drawing_elem.replace(inline_elem, anchor_elem)
         return True
-    except Exception:
+    except Exception as e:
+        logger.warning("Gagal menyisipkan gambar tanda tangan '%s': %s", image_path, e, exc_info=True)
         return False

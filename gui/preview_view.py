@@ -129,7 +129,6 @@ class IntegratedPreviewDialog(tk.Toplevel):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-        approved_count = 0
         for idx, it in enumerate(self.plan_items):
             if self.filter_mode == "REVIEW_ONLY" and it.confidence == ConfidenceLevel.HIGH:
                 continue

@@ -94,13 +94,15 @@ class ReportDialog(tk.Toplevel):
     def _open_folder(self):
         try:
             os.startfile(self.output_dir)
-        except Exception:
-            pass
+        except Exception as e:
+            messagebox.showwarning("Gagal Membuka Folder", f"Tidak dapat membuka folder:\n{e}")
 
     def _open_report_file(self):
         report_path = os.path.join(self.output_dir, "LAPORAN_PENGGANTIAN_RPP.txt")
         if os.path.isfile(report_path):
             try:
                 os.startfile(report_path)
-            except Exception:
-                pass
+            except Exception as e:
+                messagebox.showwarning("Gagal Membuka Laporan", f"Tidak dapat membuka file laporan:\n{e}")
+        else:
+            messagebox.showinfo("Laporan", "Berkas laporan belum tersedia di folder output.")

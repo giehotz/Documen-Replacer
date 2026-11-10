@@ -9,8 +9,15 @@ Menganalisis dan memproses blok pengesahan/tanda tangan RPP:
 """
 from typing import List, Dict, Optional, Tuple, Any
 import re
+import logging
 from docx.text.paragraph import Paragraph
 from docx.table import Table, _Cell
+
+logger = logging.getLogger(__name__)
+
+# Kata Kunci Standar Pengenal Peran (Single Source of Truth)
+KEPALA_ROLE_KEYWORDS = ("kepala", "mengetahui")
+GURU_ROLE_KEYWORDS = ("guru", "penyusun", "wali", "pendidik")
 
 from core.placeholder_detector import (
     is_pure_placeholder,
@@ -80,11 +87,10 @@ def is_signature_table(table: Table) -> bool:
             full_table_text += cell.text + " "
 
     lower_text = full_table_text.lower()
-    has_mengetahui = "mengetahui" in lower_text
-    has_kepala = "kepala" in lower_text
-    has_guru = any(k in lower_text for k in ["guru", "penyusun", "wali kelas", "pendidik"])
+    has_kepala = any(k in lower_text for k in KEPALA_ROLE_KEYWORDS)
+    has_guru = any(k in lower_text for k in GURU_ROLE_KEYWORDS)
 
-    return (has_mengetahui and (has_kepala or has_guru)) or (has_kepala and has_guru)
+    return has_kepala and has_guru
 
 
 def classify_zone_role(paragraphs: List[Paragraph]) -> str:
@@ -93,9 +99,9 @@ def classify_zone_role(paragraphs: List[Paragraph]) -> str:
     """
     for p in paragraphs[:4]:  # Cek 4 baris teratas
         text = get_paragraph_text(p).lower()
-        if "kepala" in text or "mengetahui" in text:
+        if any(k in text for k in KEPALA_ROLE_KEYWORDS):
             return "KEPALA"
-        if any(k in text for k in ["guru", "penyusun", "wali kelas", "pendidik"]):
+        if any(k in text for k in GURU_ROLE_KEYWORDS):
             return "GURU"
     return "UNKNOWN"
 
@@ -131,9 +137,9 @@ def process_signature_zone(
     anchor_idx = -1
     for i in range(num_p):
         t = get_paragraph_text(paragraphs[i]).lower()
-        if role == "KEPALA" and ("kepala" in t or "mengetahui" in t):
+        if role == "KEPALA" and any(k in t for k in KEPALA_ROLE_KEYWORDS):
             anchor_idx = i
-        elif role == "GURU" and any(k in t for k in ["guru", "penyusun", "wali kelas", "pendidik"]):
+        elif role == "GURU" and any(k in t for k in GURU_ROLE_KEYWORDS):
             anchor_idx = i
 
     start_scan = anchor_idx + 1 if anchor_idx != -1 else 0
@@ -187,21 +193,29 @@ def process_signature_zone(
                 align = signature_settings.get("alignment", "CENTER")
                 sp_b = int(signature_settings.get("spacing_before_pt", 2))
                 sp_a = int(signature_settings.get("spacing_after_pt", 2))
+                behind = bool(signature_settings.get("behind_text", True))
+                off_x = float(signature_settings.get("offset_x_kepala_cm" if is_kepala else "offset_x_guru_cm", 0.0))
+                off_y = float(signature_settings.get("offset_y_kepala_cm" if is_kepala else "offset_y_guru_cm", 0.0))
 
-                # Gunakan paragraf kosong tepat sebelum nama jika ada, atau sisipkan paragraf baru
-                p_img = None
-                for empty_i in range(start_scan, name_idx):
-                    if not get_paragraph_text(paragraphs[empty_i]).strip():
-                        p_img = paragraphs[empty_i]
-                        break
+                if behind:
+                    p_target = paragraphs[name_idx]
+                else:
+                    p_target = None
+                    for empty_i in range(start_scan, name_idx):
+                        if not get_paragraph_text(paragraphs[empty_i]).strip():
+                            p_target = paragraphs[empty_i]
+                            break
+                    if p_target is None:
+                        p_target = paragraphs[name_idx].insert_paragraph_before()
 
-                if p_img is None:
-                    p_img = paragraphs[name_idx].insert_paragraph_before()
-
-                if insert_signature_picture(p_img, img_path, width_cm, align, sp_b, sp_a):
+                if insert_signature_picture(
+                    p_target, img_path, width_cm=width_cm, alignment=align,
+                    spacing_before_pt=sp_b, spacing_after_pt=sp_a,
+                    behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y
+                ):
                     changes += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Gagal menyisipkan gambar tanda tangan (role=%s): %s", role, e, exc_info=True)
 
     # 5. Proses baris NIP
     target_nip_key = "NIP Kepala" if role == "KEPALA" else "NIP Guru"
@@ -290,7 +304,9 @@ def process_tab_separated_signature_block(
     for block in blocks:
         # Cek apakah blok ini mengandung Mengetahui / Kepala / Guru
         block_text = " ".join(get_paragraph_text(paragraphs[i]) for i in block).lower()
-        if not (("mengetahui" in block_text or "kepala" in block_text) and "guru" in block_text):
+        has_k = any(k in block_text for k in KEPALA_ROLE_KEYWORDS)
+        has_g = any(k in block_text for k in GURU_ROLE_KEYWORDS)
+        if not (has_k and has_g):
             continue
 
         # Pecah tiap baris menjadi bagian kiri dan kanan berdasarkan tab

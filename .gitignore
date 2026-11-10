@@ -1,8 +1,16 @@
 # --- Diabaikan sesuai permintaan ---
-/tests/
 /PANDUAN_PENGGUNAAN.md
 /docs/
 /Hasil_Edit_RPP_Kelas6/
+
+# --- Artefak Pengujian & Output Sementara ---
+tests/real_out/
+tests/temp_dbg/
+tests/temp_sig*
+test_*.docx
+test_*.png
+*.tmp.docx
+.codegraph/
 
 # --- Python ---
 __pycache__/
@@ -28,3 +36,6 @@ desktop.ini
 
 # --- File sementara Word ---
 ~$*.docx
+
+# --- User Local Config (PII Protection) ---
+config/signature_settings.json

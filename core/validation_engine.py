@@ -28,20 +28,8 @@ class ReplacementPlanItem:
     confidence: str = ConfidenceLevel.HIGH
     location_info: str = ""
     is_approved: bool = True
-    target_type: str = "EXACT"  # 'EXACT', 'SPAN', 'PARAGRAPH_FULL', 'TABLE_CELL'
+    target_type: str = "EXACT"  # 'EXACT', 'SPAN', 'PARAGRAPH_FULL', 'TABLE_CELL', 'HEADER_FOOTER', 'TAB_LINE'
     target_meta: Dict[str, Any] = field(default_factory=dict)
-
-    def to_display_tuple(self):
-        """Format untuk ditampilkan di Treeview GUI."""
-        return (
-            "✓" if self.is_approved else "✗",
-            self.rel_path,
-            self.category,
-            self.confidence,
-            self.old_text.strip() if self.old_text else "(kosong/placeholder)",
-            self.new_text.strip(),
-            self.location_info
-        )
 
 
 def validate_type_safety(category: str, old_text: str, new_text: str) -> bool:

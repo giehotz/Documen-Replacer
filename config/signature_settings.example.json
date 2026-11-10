@@ -2,10 +2,15 @@
   "enabled_kepala": false,
   "kepala_image_path": "",
   "kepala_width_cm": 3.5,
+  "offset_x_kepala_cm": 0.0,
+  "offset_y_kepala_cm": 0.0,
   "enabled_guru": false,
   "guru_image_path": "",
   "guru_width_cm": 3.5,
+  "offset_x_guru_cm": 0.0,
+  "offset_y_guru_cm": 0.0,
   "alignment": "CENTER",
+  "behind_text": true,
   "spacing_before_pt": 2,
   "spacing_after_pt": 2
 }
