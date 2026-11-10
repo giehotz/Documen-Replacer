@@ -2,6 +2,7 @@
 Komponen GUI: Jendela Desain & Pengatur Tanda Tangan Digital (Signature Designer).
 Menyediakan:
 - Kontrol slider ukuran (cm), pemilihan berkas gambar, perataan, dan spasi
+- Pemisahan profil konfigurasi antara Dokumen Potrait (RPP) dan Dokumen Lanskap (Silabus/Promes)
 - Simulasi visual Kanvas real-time blok tanda tangan Microsoft Word
 - Penyimpanan pengaturan permanen ke config/signature_settings.json
 """
@@ -21,9 +22,9 @@ from core.signature_image_service import (
 class SignatureDesignerDialog(tk.Toplevel):
     def __init__(self, parent: tk.Tk, on_save_callback=None):
         super().__init__(parent)
-        self.title("Pengatur Tanda Tangan Digital & Presisi Penempatan")
-        self.geometry("1020x700")
-        self.minsize(920, 620)
+        self.title("Pengatur Tanda Tangan Digital & Presisi Penempatan (Potrait & Lanskap)")
+        self.geometry("1040x720")
+        self.minsize(940, 640)
         self.transient(parent)
         self.grab_set()
 
@@ -38,21 +39,57 @@ class SignatureDesignerDialog(tk.Toplevel):
         self._update_preview()
 
     def _init_variables(self):
+        self.current_orientation = "PORTRAIT"
+
+        # Pengaturan Bersama (Gambar, Status Aktif, Alignment, Behind Text)
         self.enable_kepala_var = tk.BooleanVar(value=self.settings.get("enabled_kepala", False))
         self.path_kepala_var = tk.StringVar(value=self.settings.get("kepala_image_path", ""))
-        self.width_kepala_var = tk.DoubleVar(value=float(self.settings.get("kepala_width_cm", 3.5)))
-        self.offx_kepala_var = tk.DoubleVar(value=float(self.settings.get("offset_x_kepala_cm", 0.0)))
-        self.offy_kepala_var = tk.DoubleVar(value=float(self.settings.get("offset_y_kepala_cm", 0.0)))
-
         self.enable_guru_var = tk.BooleanVar(value=self.settings.get("enabled_guru", False))
         self.path_guru_var = tk.StringVar(value=self.settings.get("guru_image_path", ""))
-        self.width_guru_var = tk.DoubleVar(value=float(self.settings.get("guru_width_cm", 3.5)))
-        self.offx_guru_var = tk.DoubleVar(value=float(self.settings.get("offset_x_guru_cm", 0.0)))
-        self.offy_guru_var = tk.DoubleVar(value=float(self.settings.get("offset_y_guru_cm", 0.0)))
 
         self.alignment_var = tk.StringVar(value=self.settings.get("alignment", "CENTER"))
         self.behind_text_var = tk.BooleanVar(value=bool(self.settings.get("behind_text", True)))
         self.spacing_var = tk.IntVar(value=int(self.settings.get("spacing_before_pt", 2)))
+
+        # Profil Geometri Potrait (Root Settings)
+        self.portrait_geo = {
+            "width_kepala": float(self.settings.get("kepala_width_cm", 3.5)),
+            "offx_kepala": float(self.settings.get("offset_x_kepala_cm", 0.0)),
+            "offy_kepala": float(self.settings.get("offset_y_kepala_cm", 0.0)),
+            "width_guru": float(self.settings.get("guru_width_cm", 3.5)),
+            "offx_guru": float(self.settings.get("offset_x_guru_cm", 0.0)),
+            "offy_guru": float(self.settings.get("offset_y_guru_cm", 0.0)),
+        }
+
+        # Profil Geometri Lanskap (Sub-dict 'landscape')
+        land_cfg = self.settings.get("landscape")
+        if isinstance(land_cfg, dict):
+            self.landscape_geo = {
+                "width_kepala": float(land_cfg.get("kepala_width_cm", self.portrait_geo["width_kepala"])),
+                "offx_kepala": float(land_cfg.get("offset_x_kepala_cm", round(self.portrait_geo["offx_kepala"] - 2.3, 1))),
+                "offy_kepala": float(land_cfg.get("offset_y_kepala_cm", self.portrait_geo["offy_kepala"])),
+                "width_guru": float(land_cfg.get("guru_width_cm", self.portrait_geo["width_guru"])),
+                "offx_guru": float(land_cfg.get("offset_x_guru_cm", round(self.portrait_geo["offx_guru"] - 2.3, 1))),
+                "offy_guru": float(land_cfg.get("offset_y_guru_cm", self.portrait_geo["offy_guru"])),
+            }
+        else:
+            self.landscape_geo = {
+                "width_kepala": self.portrait_geo["width_kepala"],
+                "offx_kepala": round(self.portrait_geo["offx_kepala"] - 2.3, 1),
+                "offy_kepala": self.portrait_geo["offy_kepala"],
+                "width_guru": self.portrait_geo["width_guru"],
+                "offx_guru": round(self.portrait_geo["offx_guru"] - 2.3, 1),
+                "offy_guru": self.portrait_geo["offy_guru"],
+            }
+
+        # Variabel aktif yang terikat langsung ke slider GUI
+        self.width_kepala_var = tk.DoubleVar(value=self.portrait_geo["width_kepala"])
+        self.offx_kepala_var = tk.DoubleVar(value=self.portrait_geo["offx_kepala"])
+        self.offy_kepala_var = tk.DoubleVar(value=self.portrait_geo["offy_kepala"])
+
+        self.width_guru_var = tk.DoubleVar(value=self.portrait_geo["width_guru"])
+        self.offx_guru_var = tk.DoubleVar(value=self.portrait_geo["offx_guru"])
+        self.offy_guru_var = tk.DoubleVar(value=self.portrait_geo["offy_guru"])
 
     def _build_ui(self):
         # 1. Header
@@ -60,19 +97,19 @@ class SignatureDesignerDialog(tk.Toplevel):
         header.pack(fill="x")
         ttk.Label(
             header,
-            text="Pengatur Posisi & Ukuran Tanda Tangan Digital",
+            text="Pengatur Posisi & Ukuran Tanda Tangan Digital (Potrait & Lanskap)",
             font=("Segoe UI", 11, "bold")
         ).pack(anchor="w")
         ttk.Label(
             header,
-            text="Atur ukuran, posisi geser horizontal/vertikal, dan mode di belakang teks. Lihat hasil simulasi real-time di sisi kanan.",
+            text="Tersedia profil terpisah untuk Dokumen Potrait (RPP) dan Dokumen Lanskap (Silabus/Promes). Sistem otomatis mendeteksi orientasi berkas saat memproses.",
             foreground="#555555"
         ).pack(anchor="w", pady=(2, 0))
 
         # 2. Main Container (Split: Kiri Kontrol, Kanan Kanvas)
         container = ttk.Frame(self, padding=(12, 4))
         container.pack(fill="both", expand=True)
-        container.columnconfigure(0, weight=4, minsize=400)
+        container.columnconfigure(0, weight=4, minsize=420)
         container.columnconfigure(1, weight=5, minsize=440)
         container.rowconfigure(0, weight=1)
 
@@ -82,24 +119,66 @@ class SignatureDesignerDialog(tk.Toplevel):
         left_frame = ttk.Frame(container)
         left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
 
+        # Tab Pemilih Orientasi Halaman
+        tab_frame = ttk.LabelFrame(left_frame, text=" Pilih Profil Orientasi yang Sedang Diatur ", padding=6)
+        tab_frame.pack(fill="x", pady=(0, 6))
+
+        tab_row = ttk.Frame(tab_frame)
+        tab_row.pack(fill="x", pady=2)
+
+        self.btn_tab_portrait = tk.Button(
+            tab_row,
+            text="📄 Dokumen Potrait (RPP)",
+            font=("Segoe UI", 9, "bold"),
+            bg="#0066cc",
+            fg="#ffffff",
+            relief="groove",
+            command=lambda: self._switch_orientation("PORTRAIT")
+        )
+        self.btn_tab_portrait.pack(side="left", fill="x", expand=True, padx=(0, 3), ipady=3)
+
+        self.btn_tab_landscape = tk.Button(
+            tab_row,
+            text="📑 Dokumen Lanskap (Silabus / Promes)",
+            font=("Segoe UI", 9),
+            bg="#f0f0f0",
+            fg="#222222",
+            relief="groove",
+            command=lambda: self._switch_orientation("LANDSCAPE")
+        )
+        self.btn_tab_landscape.pack(side="left", fill="x", expand=True, padx=(3, 0), ipady=3)
+
+        # Bilah Alat Khusus Lanskap (Pintasan Cepat)
+        self.frame_land_tools = ttk.Frame(left_frame, padding=(4, 2))
+        ttk.Button(
+            self.frame_land_tools,
+            text="📋 Salin dari Potrait",
+            command=self._copy_from_portrait
+        ).pack(side="left", fill="x", expand=True, padx=(0, 2))
+        ttk.Button(
+            self.frame_land_tools,
+            text="⚡ Sesuaikan Otomatis Lanskap",
+            command=self._auto_compensate_landscape
+        ).pack(side="left", fill="x", expand=True, padx=(2, 0))
+
         # A. Tanda Tangan Kepala Madrasah
-        frame_kepala = ttk.LabelFrame(left_frame, text=" 1. Tanda Tangan Kepala Madrasah/Sekolah ", padding=8)
-        frame_kepala.pack(fill="x", pady=(0, 5))
+        self.frame_kepala = ttk.LabelFrame(left_frame, text=" 1. Tanda Tangan Kepala Madrasah/Sekolah ", padding=8)
+        self.frame_kepala.pack(fill="x", pady=(0, 5))
 
         ttk.Checkbutton(
-            frame_kepala,
+            self.frame_kepala,
             text="Aktifkan Sisipkan Tanda Tangan Kepala",
             variable=self.enable_kepala_var,
             command=self._on_control_changed
         ).pack(anchor="w", pady=(0, 2))
 
-        row_k1 = ttk.Frame(frame_kepala)
+        row_k1 = ttk.Frame(self.frame_kepala)
         row_k1.pack(fill="x", pady=2)
         ttk.Label(row_k1, text="Berkas:").pack(side="left")
         ttk.Button(row_k1, text="Pilih Gambar...", command=self._browse_kepala).pack(side="right")
         ttk.Entry(row_k1, textvariable=self.path_kepala_var, state="readonly").pack(side="left", fill="x", expand=True, padx=4)
 
-        row_k2 = ttk.Frame(frame_kepala)
+        row_k2 = ttk.Frame(self.frame_kepala)
         row_k2.pack(fill="x", pady=1)
         ttk.Label(row_k2, text="Lebar:").pack(side="left")
         self.lbl_width_kepala = ttk.Label(row_k2, text=f"{self.width_kepala_var.get():.1f} cm", width=8, anchor="e")
@@ -113,20 +192,20 @@ class SignatureDesignerDialog(tk.Toplevel):
         )
         self.slider_kepala.pack(side="left", fill="x", expand=True, padx=6)
 
-        row_k3 = ttk.Frame(frame_kepala)
+        row_k3 = ttk.Frame(self.frame_kepala)
         row_k3.pack(fill="x", pady=1)
         ttk.Label(row_k3, text="Geser X (◄ ►):").pack(side="left")
         self.lbl_offx_kepala = ttk.Label(row_k3, text=self._fmt_offset(self.offx_kepala_var.get()), width=8, anchor="e")
         self.lbl_offx_kepala.pack(side="right")
         ttk.Scale(
             row_k3,
-            from_=-5.0,
-            to=5.0,
+            from_=-8.0,
+            to=8.0,
             variable=self.offx_kepala_var,
             command=lambda val: self._on_slider_changed("kepala", "offx", val)
         ).pack(side="left", fill="x", expand=True, padx=6)
 
-        row_k4 = ttk.Frame(frame_kepala)
+        row_k4 = ttk.Frame(self.frame_kepala)
         row_k4.pack(fill="x", pady=1)
         ttk.Label(row_k4, text="Geser Y (▲ ▼):").pack(side="left")
         self.lbl_offy_kepala = ttk.Label(row_k4, text=self._fmt_offset(self.offy_kepala_var.get()), width=8, anchor="e")
@@ -177,8 +256,8 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.lbl_offx_guru.pack(side="right")
         ttk.Scale(
             row_g3,
-            from_=-5.0,
-            to=5.0,
+            from_=-8.0,
+            to=8.0,
             variable=self.offx_guru_var,
             command=lambda val: self._on_slider_changed("guru", "offx", val)
         ).pack(side="left", fill="x", expand=True, padx=6)
@@ -251,8 +330,79 @@ class SignatureDesignerDialog(tk.Toplevel):
         return f"{sign}{v:.1f} cm"
 
     # =========================================================================
-    # EVENT HANDLERS
+    # EVENT HANDLERS & ORIENTATION SWITCHING
     # =========================================================================
+    def _switch_orientation(self, target_mode: str):
+        if target_mode == self.current_orientation:
+            return
+
+        # 1. Simpan nilai aktif saat ini ke dictionary profil
+        active_dict = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_dict["width_kepala"] = round(self.width_kepala_var.get(), 1)
+        active_dict["offx_kepala"] = round(self.offx_kepala_var.get(), 1)
+        active_dict["offy_kepala"] = round(self.offy_kepala_var.get(), 1)
+        active_dict["width_guru"] = round(self.width_guru_var.get(), 1)
+        active_dict["offx_guru"] = round(self.offx_guru_var.get(), 1)
+        active_dict["offy_guru"] = round(self.offy_guru_var.get(), 1)
+
+        # 2. Beralih mode orientasi
+        self.current_orientation = target_mode
+        new_dict = self.portrait_geo if target_mode == "PORTRAIT" else self.landscape_geo
+
+        # 3. Muat nilai profil ke variabel Tk
+        self.width_kepala_var.set(new_dict["width_kepala"])
+        self.offx_kepala_var.set(new_dict["offx_kepala"])
+        self.offy_kepala_var.set(new_dict["offy_kepala"])
+        self.width_guru_var.set(new_dict["width_guru"])
+        self.offx_guru_var.set(new_dict["offx_guru"])
+        self.offy_guru_var.set(new_dict["offy_guru"])
+
+        # 4. Perbarui label slider
+        self.lbl_width_kepala.config(text=f"{new_dict['width_kepala']:.1f} cm")
+        self.lbl_offx_kepala.config(text=self._fmt_offset(new_dict['offx_kepala']))
+        self.lbl_offy_kepala.config(text=self._fmt_offset(new_dict['offy_kepala']))
+        self.lbl_width_guru.config(text=f"{new_dict['width_guru']:.1f} cm")
+        self.lbl_offx_guru.config(text=self._fmt_offset(new_dict['offx_guru']))
+        self.lbl_offy_guru.config(text=self._fmt_offset(new_dict['offy_guru']))
+
+        # 5. Perbarui gaya tombol tab
+        if target_mode == "PORTRAIT":
+            self.btn_tab_portrait.config(bg="#0066cc", fg="#ffffff", font=("Segoe UI", 9, "bold"))
+            self.btn_tab_landscape.config(bg="#f0f0f0", fg="#222222", font=("Segoe UI", 9))
+            self.frame_land_tools.pack_forget()
+        else:
+            self.btn_tab_landscape.config(bg="#0066cc", fg="#ffffff", font=("Segoe UI", 9, "bold"))
+            self.btn_tab_portrait.config(bg="#f0f0f0", fg="#222222", font=("Segoe UI", 9))
+            self.frame_land_tools.pack(fill="x", pady=(0, 6), before=self.frame_kepala)
+
+        self._update_preview()
+
+    def _copy_from_portrait(self):
+        """Menyalin nilai konfigurasi potrait ke lanskap."""
+        self.landscape_geo["width_kepala"] = self.portrait_geo["width_kepala"]
+        self.landscape_geo["offx_kepala"] = self.portrait_geo["offx_kepala"]
+        self.landscape_geo["offy_kepala"] = self.portrait_geo["offy_kepala"]
+        self.landscape_geo["width_guru"] = self.portrait_geo["width_guru"]
+        self.landscape_geo["offx_guru"] = self.portrait_geo["offx_guru"]
+        self.landscape_geo["offy_guru"] = self.portrait_geo["offy_guru"]
+
+        if self.current_orientation == "LANDSCAPE":
+            self._switch_orientation("PORTRAIT")
+            self._switch_orientation("LANDSCAPE")
+
+    def _auto_compensate_landscape(self):
+        """Menghitung kompensasi otomatis untuk kolom tabel lanskap yang lebih lebar."""
+        self.landscape_geo["width_kepala"] = self.portrait_geo["width_kepala"]
+        self.landscape_geo["offx_kepala"] = round(self.portrait_geo["offx_kepala"] - 2.3, 1)
+        self.landscape_geo["offy_kepala"] = self.portrait_geo["offy_kepala"]
+        self.landscape_geo["width_guru"] = self.portrait_geo["width_guru"]
+        self.landscape_geo["offx_guru"] = round(self.portrait_geo["offx_guru"] - 2.3, 1)
+        self.landscape_geo["offy_guru"] = self.portrait_geo["offy_guru"]
+
+        if self.current_orientation == "LANDSCAPE":
+            self._switch_orientation("PORTRAIT")
+            self._switch_orientation("LANDSCAPE")
+
     def _browse_kepala(self):
         f = filedialog.askopenfilename(
             title="Pilih Gambar Tanda Tangan Kepala",
@@ -306,8 +456,14 @@ class SignatureDesignerDialog(tk.Toplevel):
         if w < 100 or h < 100:
             w, h = 500, 450
 
-        # Skala konversi: 1 cm di dunia nyata ~ 30 pixel di kanvas layar
-        px_per_cm = 30.0
+        # Skala konversi: 1 cm di dunia nyata ~ 28 pixel di kanvas layar
+        px_per_cm = 28.0
+        is_land = (self.current_orientation == "LANDSCAPE")
+
+        # Indikator mode orientasi aktif di kanvas
+        mode_text = "Simulasi: 📑 Dokumen Lanskap (Lebar Kolom ~13.1 cm)" if is_land else "Simulasi: 📄 Dokumen Potrait (Lebar Kolom ~8.5 cm)"
+        mode_color = "#0055aa" if is_land else "#555555"
+        self.canvas.create_text(w / 2, 14, text=mode_text, font=("Segoe UI", 9, "bold"), fill=mode_color)
 
         # Koordinat kolom Kiri (Kepala) dan Kanan (Guru)
         col_w = w / 2.0
@@ -315,11 +471,14 @@ class SignatureDesignerDialog(tk.Toplevel):
         x_guru_center = col_w * 1.5
 
         # Garis batas vertikal samar pemisah 2 kolom tabel Word
-        self.canvas.create_line(col_w, 20, col_w, h - 20, fill="#eeeeee", dash=(4, 4))
+        self.canvas.create_line(col_w, 28, col_w, h - 15, fill="#eeeeee", dash=(4, 4))
 
         # Y anchor dasar baris Nama Terang
-        y_name_k = 185
-        y_name_g = 185
+        y_name_k = 195
+        y_name_g = 195
+
+        # Pergeseran dasar jika orientasi Lanskap (kolom Word lebih lebar ~4.6cm -> centering geser ke kanan ~2.3cm)
+        base_shift_px = int(2.3 * px_per_cm) if is_land else 0
 
         # Hitung posisi gambar Kepala
         k_path = self.path_kepala_var.get().strip()
@@ -327,7 +486,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         k_width_cm = self.width_kepala_var.get()
         k_target_px = int(k_width_cm * px_per_cm)
         base_x_k = self._calc_align_x(x_kepala_center, col_w * 0.1, col_w * 0.9, k_target_px)
-        x_img_k = base_x_k + int(self.offx_kepala_var.get() * px_per_cm)
+        x_img_k = base_x_k + base_shift_px + int(self.offx_kepala_var.get() * px_per_cm)
         y_img_k = (y_name_k - 35) + int(self.offy_kepala_var.get() * px_per_cm)
 
         # Hitung posisi gambar Guru
@@ -336,7 +495,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         g_width_cm = self.width_guru_var.get()
         g_target_px = int(g_width_cm * px_per_cm)
         base_x_g = self._calc_align_x(x_guru_center, col_w + col_w * 0.1, col_w + col_w * 0.9, g_target_px)
-        x_img_g = base_x_g + int(self.offx_guru_var.get() * px_per_cm)
+        x_img_g = base_x_g + base_shift_px + int(self.offx_guru_var.get() * px_per_cm)
         y_img_g = (y_name_g - 35) + int(self.offy_guru_var.get() * px_per_cm)
 
         behind = self.behind_text_var.get()
@@ -386,14 +545,14 @@ class SignatureDesignerDialog(tk.Toplevel):
 
         def draw_texts():
             # Teks Kepala
-            self.canvas.create_text(x_kepala_center, 40, text="Mengetahui,", font=("Segoe UI", 9), fill="#333333")
-            self.canvas.create_text(x_kepala_center, 60, text="Kepala Madrasah", font=("Segoe UI", 9, "bold"), fill="#111111")
+            self.canvas.create_text(x_kepala_center, 48, text="Mengetahui,", font=("Segoe UI", 9), fill="#333333")
+            self.canvas.create_text(x_kepala_center, 68, text="Kepala Madrasah", font=("Segoe UI", 9, "bold"), fill="#111111")
             self.canvas.create_text(x_kepala_center, y_name_k, text="( Nama Kepala Madrasah, M.Pd )", font=("Segoe UI", 9, "bold", "underline"), fill="#111111")
             self.canvas.create_text(x_kepala_center, y_name_k + 20, text="NIP. 197001012000011001", font=("Segoe UI", 9), fill="#333333")
 
             # Teks Guru
-            self.canvas.create_text(x_guru_center, 40, text="Kota Contoh, 10 Juli 2026", font=("Segoe UI", 9), fill="#333333")
-            self.canvas.create_text(x_guru_center, 60, text="Guru Mata Pelajaran", font=("Segoe UI", 9, "bold"), fill="#111111")
+            self.canvas.create_text(x_guru_center, 48, text="Kota Contoh, 10 Juli 2026", font=("Segoe UI", 9), fill="#333333")
+            self.canvas.create_text(x_guru_center, 68, text="Guru Mata Pelajaran", font=("Segoe UI", 9, "bold"), fill="#111111")
             self.canvas.create_text(x_guru_center, y_name_g, text="( Nama Guru Penyusun, S.Pd )", font=("Segoe UI", 9, "bold", "underline"), fill="#111111")
             self.canvas.create_text(x_guru_center, y_name_g + 20, text="NIP. 199001012020012002", font=("Segoe UI", 9), fill="#333333")
 
@@ -416,50 +575,75 @@ class SignatureDesignerDialog(tk.Toplevel):
     def _reset_defaults(self):
         self.enable_kepala_var.set(False)
         self.path_kepala_var.set("")
-        self.width_kepala_var.set(3.5)
-        self.offx_kepala_var.set(0.0)
-        self.offy_kepala_var.set(0.0)
-
         self.enable_guru_var.set(False)
         self.path_guru_var.set("")
-        self.width_guru_var.set(3.5)
-        self.offx_guru_var.set(0.0)
-        self.offy_guru_var.set(0.0)
-
         self.alignment_var.set("CENTER")
         self.behind_text_var.set(True)
         self.spacing_var.set(2)
 
-        self.lbl_width_kepala.config(text="3.5 cm")
-        self.lbl_offx_kepala.config(text="0.0 cm")
-        self.lbl_offy_kepala.config(text="0.0 cm")
+        self.portrait_geo = {
+            "width_kepala": 3.5, "offx_kepala": 0.0, "offy_kepala": 0.0,
+            "width_guru": 3.5, "offx_guru": 0.0, "offy_guru": 0.0
+        }
+        self.landscape_geo = {
+            "width_kepala": 3.5, "offx_kepala": -2.3, "offy_kepala": 0.0,
+            "width_guru": 3.5, "offx_guru": -2.3, "offy_guru": 0.0
+        }
 
-        self.lbl_width_guru.config(text="3.5 cm")
-        self.lbl_offx_guru.config(text="0.0 cm")
-        self.lbl_offy_guru.config(text="0.0 cm")
+        active = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        self.width_kepala_var.set(active["width_kepala"])
+        self.offx_kepala_var.set(active["offx_kepala"])
+        self.offy_kepala_var.set(active["offy_kepala"])
+        self.width_guru_var.set(active["width_guru"])
+        self.offx_guru_var.set(active["offx_guru"])
+        self.offy_guru_var.set(active["offy_guru"])
+
+        self.lbl_width_kepala.config(text=f"{active['width_kepala']:.1f} cm")
+        self.lbl_offx_kepala.config(text=self._fmt_offset(active["offx_kepala"]))
+        self.lbl_offy_kepala.config(text=self._fmt_offset(active["offy_kepala"]))
+        self.lbl_width_guru.config(text=f"{active['width_guru']:.1f} cm")
+        self.lbl_offx_guru.config(text=self._fmt_offset(active["offx_guru"]))
+        self.lbl_offy_guru.config(text=self._fmt_offset(active["offy_guru"]))
 
         self._update_preview()
 
     def _save_settings(self):
+        # 1. Pastikan nilai aktif saat ini tersimpan ke profil yang relevan
+        active_dict = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_dict["width_kepala"] = round(self.width_kepala_var.get(), 1)
+        active_dict["offx_kepala"] = round(self.offx_kepala_var.get(), 1)
+        active_dict["offy_kepala"] = round(self.offy_kepala_var.get(), 1)
+        active_dict["width_guru"] = round(self.width_guru_var.get(), 1)
+        active_dict["offx_guru"] = round(self.offx_guru_var.get(), 1)
+        active_dict["offy_guru"] = round(self.offy_guru_var.get(), 1)
+
         new_settings = dict(self.settings)
         new_settings.update({
             "enabled_kepala": self.enable_kepala_var.get(),
             "kepala_image_path": self.path_kepala_var.get().strip(),
-            "kepala_width_cm": round(self.width_kepala_var.get(), 1),
-            "offset_x_kepala_cm": round(self.offx_kepala_var.get(), 1),
-            "offset_y_kepala_cm": round(self.offy_kepala_var.get(), 1),
+            "kepala_width_cm": self.portrait_geo["width_kepala"],
+            "offset_x_kepala_cm": self.portrait_geo["offx_kepala"],
+            "offset_y_kepala_cm": self.portrait_geo["offy_kepala"],
             "enabled_guru": self.enable_guru_var.get(),
             "guru_image_path": self.path_guru_var.get().strip(),
-            "guru_width_cm": round(self.width_guru_var.get(), 1),
-            "offset_x_guru_cm": round(self.offx_guru_var.get(), 1),
-            "offset_y_guru_cm": round(self.offy_guru_var.get(), 1),
+            "guru_width_cm": self.portrait_geo["width_guru"],
+            "offset_x_guru_cm": self.portrait_geo["offx_guru"],
+            "offset_y_guru_cm": self.portrait_geo["offy_guru"],
             "alignment": self.alignment_var.get(),
             "behind_text": self.behind_text_var.get(),
             "spacing_before_pt": 2,
             "spacing_after_pt": 2,
+            "landscape": {
+                "kepala_width_cm": self.landscape_geo["width_kepala"],
+                "offset_x_kepala_cm": self.landscape_geo["offx_kepala"],
+                "offset_y_kepala_cm": self.landscape_geo["offy_kepala"],
+                "guru_width_cm": self.landscape_geo["width_guru"],
+                "offset_x_guru_cm": self.landscape_geo["offx_guru"],
+                "offset_y_guru_cm": self.landscape_geo["offy_guru"],
+            }
         })
         save_signature_settings(new_settings)
         if self.on_save_callback:
             self.on_save_callback(new_settings)
-        messagebox.showinfo("Berhasil", "Pengaturan tanda tangan berhasil disimpan!")
+        messagebox.showinfo("Berhasil", "Pengaturan tanda tangan Potrait & Lanskap berhasil disimpan!")
         self.destroy()

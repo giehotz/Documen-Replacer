@@ -12,5 +12,13 @@
   "alignment": "CENTER",
   "behind_text": true,
   "spacing_before_pt": 2,
-  "spacing_after_pt": 2
+  "spacing_after_pt": 2,
+  "landscape": {
+    "kepala_width_cm": 3.5,
+    "offset_x_kepala_cm": -2.3,
+    "offset_y_kepala_cm": 0.0,
+    "guru_width_cm": 3.5,
+    "offset_x_guru_cm": -2.3,
+    "offset_y_guru_cm": 0.0
+  }
 }

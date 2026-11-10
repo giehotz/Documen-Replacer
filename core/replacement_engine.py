@@ -197,8 +197,10 @@ class ReplacementEngine:
         target_values: Dict[str, str],
         mode: str
     ) -> List[ReplacementPlanItem]:
-        from core.signature_image_service import load_signature_settings
-        sig_cfg = load_signature_settings()
+        from core.signature_image_service import load_signature_settings, is_document_landscape, resolve_signature_settings_for_orientation
+        raw_sig_cfg = load_signature_settings()
+        is_land = is_document_landscape(doc)
+        sig_cfg = resolve_signature_settings_for_orientation(raw_sig_cfg, is_land)
         self.signature_settings = sig_cfg
 
         items: List[ReplacementPlanItem] = []
@@ -554,8 +556,10 @@ class ReplacementEngine:
         body_paras = doc.paragraphs
         changes = 0
 
-        from core.signature_image_service import load_signature_settings
-        sig_cfg = signature_settings or load_signature_settings()
+        from core.signature_image_service import load_signature_settings, is_document_landscape, resolve_signature_settings_for_orientation
+        raw_sig_cfg = signature_settings or load_signature_settings()
+        is_land = is_document_landscape(doc)
+        sig_cfg = resolve_signature_settings_for_orientation(raw_sig_cfg, is_land)
 
         for item in approved_items:
             if not item.is_approved:
@@ -596,6 +600,10 @@ class ReplacementEngine:
                     if r_idx < len(table.rows) and c_idx < len(table.rows[r_idx].cells):
                         cell = table.rows[r_idx].cells[c_idx]
                         if p_idx < len(cell.paragraphs):
+                            # Terapkan teks pengganti terlebih dahulu (T1: hanya hitung 1 kali per item!)
+                            replace_full_text_keep_style(cell.paragraphs[p_idx], item.new_text)
+                            changes += 1
+
                             # Jika item ini adalah Nama Kepala atau Nama Guru, dan tanda tangan digital aktif:
                             if sig_cfg and item.category in ("Nama Kepala", "Nama Guru"):
                                 is_k = (item.category == "Nama Kepala")
@@ -632,10 +640,6 @@ class ReplacementEngine:
                                         )
                                     except Exception as e:
                                         logger.warning("Gagal menyisipkan TTD (%s) pada tabel #%s: %s", item.category, t_idx, e, exc_info=True)
-
-                            # Terapkan teks pengganti (T1: hanya hitung 1 kali per item!)
-                            replace_full_text_keep_style(cell.paragraphs[p_idx], item.new_text)
-                            changes += 1
 
             elif t_type == "INSERT_SIGNATURE_TABLE":
                 t_idx = meta.get("table_idx", 0)

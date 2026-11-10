@@ -111,6 +111,7 @@ def process_signature_zone(
     role: str,
     target_values: Dict[str, str],
     signature_settings: Optional[Dict[str, Any]] = None,
+    is_landscape: bool = False,
 ) -> int:
     """
     Memproses daftar paragraf dalam satu zona tanda tangan (Kepala atau Guru).
@@ -183,19 +184,21 @@ def process_signature_zone(
 
     # 4.5 Sisipkan Gambar Tanda Tangan Digital jika dikonfigurasi
     if signature_settings and name_idx != -1:
+        from core.signature_image_service import resolve_signature_settings_for_orientation
+        resolved_sig = resolve_signature_settings_for_orientation(signature_settings, is_landscape=is_landscape)
         is_kepala = (role == "KEPALA")
-        enabled = signature_settings.get("enabled_kepala" if is_kepala else "enabled_guru", False)
-        img_path = signature_settings.get("kepala_image_path" if is_kepala else "guru_image_path", "")
+        enabled = resolved_sig.get("enabled_kepala" if is_kepala else "enabled_guru", False)
+        img_path = resolved_sig.get("kepala_image_path" if is_kepala else "guru_image_path", "")
         if enabled and img_path and os.path.isfile(img_path):
             try:
                 from core.signature_image_service import insert_signature_picture
-                width_cm = float(signature_settings.get("kepala_width_cm" if is_kepala else "guru_width_cm", 3.5))
-                align = signature_settings.get("alignment", "CENTER")
-                sp_b = int(signature_settings.get("spacing_before_pt", 2))
-                sp_a = int(signature_settings.get("spacing_after_pt", 2))
-                behind = bool(signature_settings.get("behind_text", True))
-                off_x = float(signature_settings.get("offset_x_kepala_cm" if is_kepala else "offset_x_guru_cm", 0.0))
-                off_y = float(signature_settings.get("offset_y_kepala_cm" if is_kepala else "offset_y_guru_cm", 0.0))
+                width_cm = float(resolved_sig.get("kepala_width_cm" if is_kepala else "guru_width_cm", 3.5))
+                align = resolved_sig.get("alignment", "CENTER")
+                sp_b = int(resolved_sig.get("spacing_before_pt", 2))
+                sp_a = int(resolved_sig.get("spacing_after_pt", 2))
+                behind = bool(resolved_sig.get("behind_text", True))
+                off_x = float(resolved_sig.get("offset_x_kepala_cm" if is_kepala else "offset_x_guru_cm", 0.0))
+                off_y = float(resolved_sig.get("offset_y_kepala_cm" if is_kepala else "offset_y_guru_cm", 0.0))
 
                 if behind:
                     p_target = paragraphs[name_idx]

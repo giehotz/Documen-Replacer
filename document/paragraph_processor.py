@@ -57,6 +57,7 @@ def replace_full_text_keep_style(paragraph, new_text: str) -> bool:
     """
     Mengganti seluruh teks paragraf dengan new_text,
     tetap mempertahankan style (bold, underline, dsb) dari run pertama yang ada.
+    Melindungi run yang berisi elemen gambar agar tidak terhapus.
     """
     runs = paragraph.runs
     if not runs:
@@ -66,7 +67,9 @@ def replace_full_text_keep_style(paragraph, new_text: str) -> bool:
     # Temukan run pertama yang memiliki format atau teks
     runs[0].text = new_text
     for r in runs[1:]:
-        r.text = ""
+        # Lindungi jika run memuat elemen gambar drawingML/VML
+        if not r._r.xpath(".//*[local-name()='drawing' or local-name()='pict']"):
+            r.text = ""
     return True
 
 

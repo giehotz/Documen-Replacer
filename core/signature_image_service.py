@@ -28,7 +28,51 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "behind_text": True,
     "spacing_before_pt": 2,
     "spacing_after_pt": 2,
+    "landscape": {
+        "kepala_width_cm": 3.5,
+        "offset_x_kepala_cm": -2.3,
+        "offset_y_kepala_cm": 0.0,
+        "guru_width_cm": 3.5,
+        "offset_x_guru_cm": -2.3,
+        "offset_y_guru_cm": 0.0,
+    },
 }
+
+
+def is_document_landscape(doc) -> bool:
+    """Mendeteksi apakah dokumen Word berorientasi lanskap."""
+    if not doc or not doc.sections:
+        return False
+    s = doc.sections[0]
+    try:
+        from docx.enum.section import WD_ORIENTATION
+        return (s.orientation == WD_ORIENTATION.LANDSCAPE) or (s.page_width > s.page_height)
+    except Exception:
+        return bool(s.page_width and s.page_height and s.page_width > s.page_height)
+
+
+def resolve_signature_settings_for_orientation(settings: Optional[Dict[str, Any]], is_landscape: bool) -> Dict[str, Any]:
+    """
+    Mengambil konfigurasi tanda tangan yang sesuai dengan orientasi halaman.
+    Jika is_landscape True, menimpa lebar & offset dengan konfigurasi blok 'landscape'.
+    """
+    if not settings:
+        return {}
+    res = dict(settings)
+    if is_landscape:
+        land_cfg = settings.get("landscape")
+        if isinstance(land_cfg, dict):
+            for k in (
+                "kepala_width_cm", "offset_x_kepala_cm", "offset_y_kepala_cm",
+                "guru_width_cm", "offset_x_guru_cm", "offset_y_guru_cm"
+            ):
+                if k in land_cfg:
+                    res[k] = land_cfg[k]
+        else:
+            # Kompensasi otomatis jika belum dikonfigurasi: kolom lanskap lebih lebar ~4.6cm
+            res["offset_x_kepala_cm"] = round(float(res.get("offset_x_kepala_cm", 0.0)) - 2.3, 2)
+            res["offset_x_guru_cm"] = round(float(res.get("offset_x_guru_cm", 0.0)) - 2.3, 2)
+    return res
 
 
 def get_default_config_path() -> str:
@@ -45,13 +89,21 @@ def load_signature_settings(config_path: str = "") -> Dict[str, Any]:
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                settings = DEFAULT_SETTINGS.copy()
+                settings = dict(DEFAULT_SETTINGS)
+                # Salin landscape default agar tidak tertimpa kosong
+                settings["landscape"] = dict(DEFAULT_SETTINGS["landscape"])
                 settings.update(data)
+                if isinstance(data.get("landscape"), dict):
+                    merged_land = dict(DEFAULT_SETTINGS["landscape"])
+                    merged_land.update(data["landscape"])
+                    settings["landscape"] = merged_land
                 return settings
         except Exception:
             pass
 
-    return DEFAULT_SETTINGS.copy()
+    res = dict(DEFAULT_SETTINGS)
+    res["landscape"] = dict(DEFAULT_SETTINGS["landscape"])
+    return res
 
 
 def save_signature_settings(settings: Dict[str, Any], config_path: str = "") -> None:

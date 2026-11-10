@@ -5,6 +5,7 @@ import unittest
 import os
 import shutil
 from docx import Document
+from docx.shared import Cm
 
 from core.placeholder_detector import (
     is_pure_placeholder,
@@ -22,6 +23,8 @@ from core.signature_image_service import (
     load_signature_settings,
     save_signature_settings,
     insert_signature_picture,
+    is_document_landscape,
+    resolve_signature_settings_for_orientation,
 )
 from services.report_service import ReportService
 from document.paragraph_processor import replace_span, replace_by_pattern, replace_full_text_keep_style
@@ -592,6 +595,98 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         changes = self.engine.apply_approved_changes(test_in, test_out, [plan_item], signature_settings=sig_cfg)
         # Harus tepat 1, BUKAN 2!
         self.assertEqual(changes, 1)
+
+    def test_orientation_detection_and_resolution(self):
+        """Uji deteksi orientasi Word dan resolusi konfigurasi tanda tangan."""
+        # Dokumen Potrait
+        doc_p = Document()
+        doc_p.sections[0].page_width = Cm(21.0)
+        doc_p.sections[0].page_height = Cm(29.7)
+        self.assertFalse(is_document_landscape(doc_p))
+
+        # Dokumen Lanskap
+        doc_l = Document()
+        doc_l.sections[0].page_width = Cm(29.7)
+        doc_l.sections[0].page_height = Cm(21.0)
+        self.assertTrue(is_document_landscape(doc_l))
+
+        # Resolusi konfigurasi
+        cfg = {
+            "kepala_width_cm": 4.7,
+            "offset_x_kepala_cm": -2.7,
+            "offset_y_kepala_cm": 0.0,
+            "guru_width_cm": 3.5,
+            "offset_x_guru_cm": -2.6,
+            "offset_y_guru_cm": 0.0,
+            "landscape": {
+                "kepala_width_cm": 4.7,
+                "offset_x_kepala_cm": -5.0,
+                "offset_y_kepala_cm": 0.0,
+                "guru_width_cm": 3.5,
+                "offset_x_guru_cm": -4.9,
+                "offset_y_guru_cm": 0.0,
+            }
+        }
+        res_p = resolve_signature_settings_for_orientation(cfg, is_landscape=False)
+        self.assertEqual(res_p["offset_x_kepala_cm"], -2.7)
+        self.assertEqual(res_p["offset_x_guru_cm"], -2.6)
+
+        res_l = resolve_signature_settings_for_orientation(cfg, is_landscape=True)
+        self.assertEqual(res_l["offset_x_kepala_cm"], -5.0)
+        self.assertEqual(res_l["offset_x_guru_cm"], -4.9)
+
+    def test_landscape_document_signature_placement(self):
+        """Uji penyisipan tanda tangan pada dokumen lanskap menggunakan profil lanskap."""
+        temp_img = os.path.join(self.output_dir, "test_sig_land.png")
+        img = Image.new("RGBA", (150, 75), color=(0, 0, 255, 255))
+        img.save(temp_img)
+
+        doc = Document()
+        sec = doc.sections[0]
+        sec.page_width = Cm(29.7)
+        sec.page_height = Cm(21.0)
+
+        table = doc.add_table(rows=3, cols=2)
+        table.rows[0].cells[0].paragraphs[0].text = "Mengetahui,"
+        table.rows[1].cells[0].paragraphs[0].text = "Kepala Sekolah"
+        table.rows[2].cells[0].paragraphs[0].text = "Sipulloh, M.Pd"
+
+        test_in = os.path.join(self.output_dir, "doc_land_in.docx")
+        test_out = os.path.join(self.output_dir, "doc_land_out.docx")
+        doc.save(test_in)
+
+        sig_cfg = {
+            "enabled_kepala": True,
+            "kepala_image_path": temp_img,
+            "kepala_width_cm": 4.7,
+            "offset_x_kepala_cm": -2.7,
+            "behind_text": True,
+            "landscape": {
+                "kepala_width_cm": 4.7,
+                "offset_x_kepala_cm": -5.0,
+            }
+        }
+
+        plan_item = ReplacementPlanItem(
+            doc_path=test_in,
+            rel_path="doc_land_in.docx",
+            category="Nama Kepala",
+            old_text="Sipulloh, M.Pd",
+            new_text="Sipulloh, M.Pd",
+            confidence=ConfidenceLevel.HIGH,
+            location_info="Tabel",
+            is_approved=True,
+            target_type="TABLE_CELL_PARA",
+            target_meta={"table_idx": 0, "row_idx": 2, "col_idx": 0, "para_idx": 0}
+        )
+
+        changes = self.engine.apply_approved_changes(test_in, test_out, [plan_item], signature_settings=sig_cfg)
+        self.assertEqual(changes, 1)
+
+        # Verifikasi XML Word: periksa bahwa elemen anchor terpasang di belakang teks
+        out_doc = Document(test_out)
+        xml = out_doc.tables[0].rows[2].cells[0].paragraphs[0]._element.xml
+        self.assertIn('behindDoc="1"', xml)
 
 
 if __name__ == "__main__":
