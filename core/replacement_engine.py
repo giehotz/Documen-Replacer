@@ -369,7 +369,44 @@ class ReplacementEngine:
                 label_text = ""
                 target_col = -1
 
-                if num_c == 2:
+                if num_c == 1:
+                    cell = cells[0]
+                    for p_sub_idx, p in enumerate(cell.paragraphs):
+                        text = get_paragraph_text(p)
+                        extracted = extract_label_and_placeholder(text)
+                        if extracted:
+                            label_pfx, placeholder_str, start_pos, end_pos = extracted
+                            matched_cat = match_category(label_pfx, self.aliases)
+                            conf = ConfidenceLevel.HIGH
+                            if not matched_cat:
+                                f_cat, f_score, _ = find_fuzzy_category_match(label_pfx, self.aliases, threshold=0.80)
+                                if f_cat:
+                                    matched_cat = f_cat
+                                    conf = ConfidenceLevel.MEDIUM if f_score >= 0.90 else ConfidenceLevel.LOW
+                            if matched_cat and matched_cat in target_values:
+                                new_val = target_values[matched_cat].strip()
+                                if new_val:
+                                    items.append(ReplacementPlanItem(
+                                        doc_path=in_path,
+                                        rel_path=rel_path,
+                                        category=matched_cat,
+                                        old_text=placeholder_str,
+                                        new_text=new_val,
+                                        confidence=conf,
+                                        location_info=f"Tabel Identitas #{t_idx} Baris #{r_idx} (Inline)",
+                                        is_approved=(conf != ConfidenceLevel.LOW),
+                                        target_type="TABLE_CELL_SPAN",
+                                        target_meta={
+                                            "table_idx": t_idx,
+                                            "row_idx": r_idx,
+                                            "col_idx": 0,
+                                            "para_idx": p_sub_idx,
+                                            "start": start_pos,
+                                            "end": end_pos,
+                                        }
+                                    ))
+                    continue
+                elif num_c == 2:
                     label_text = cells[0].text.strip()
                     target_col = 1
                 elif num_c >= 3 and cells[1].text.strip() == ":":
@@ -695,6 +732,21 @@ class ReplacementEngine:
                 if p_idx < len(body_paras):
                     if replace_span(body_paras[p_idx], s, e, item.new_text):
                         changes += 1
+
+            elif t_type == "TABLE_CELL_SPAN":
+                t_idx = meta.get("table_idx", 0)
+                r_idx = meta.get("row_idx", 0)
+                c_idx = meta.get("col_idx", 0)
+                p_idx = meta.get("para_idx", 0)
+                s = meta.get("start", 0)
+                e = meta.get("end", 0)
+                if t_idx < len(tables):
+                    table = tables[t_idx]
+                    if r_idx < len(table.rows) and c_idx < len(table.rows[r_idx].cells):
+                        cell = table.rows[r_idx].cells[c_idx]
+                        if p_idx < len(cell.paragraphs):
+                            if replace_span(cell.paragraphs[p_idx], s, e, item.new_text):
+                                changes += 1
 
             elif t_type == "HEADER_FOOTER":
                 s_idx = meta.get("sec_idx", 0)

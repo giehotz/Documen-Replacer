@@ -39,4 +39,6 @@ desktop.ini
 ~$*.docx
 
 # --- User Local Config (PII Protection) ---
-config/signature_settings.json
+config/*.json
+!config/aliases.json
+!config/signature_settings.example.json

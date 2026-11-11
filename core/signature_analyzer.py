@@ -79,25 +79,40 @@ def is_paragraph_bold_or_underlined(p: Paragraph) -> bool:
 def is_signature_table(table: Table) -> bool:
     """
     Mendeteksi apakah tabel merupakan tabel tanda tangan.
-    Kriteria: mengandung kata kunci Mengetahui, Kepala, atau Guru/Penyusun.
+    Kriteria:
+    - Ukuran tabel tanda tangan: 1 - 15 baris, 2 - 4 kolom.
+    - Setidaknya satu kolom berperan KEPALA dan satu kolom berperan GURU pada baris-baris atasnya.
     """
-    full_table_text = ""
-    for row in table.rows:
-        for cell in row.cells:
-            full_table_text += cell.text + " "
+    num_rows = len(table.rows)
+    if num_rows == 0 or num_rows > 15:
+        return False
 
-    lower_text = full_table_text.lower()
-    has_kepala = any(k in lower_text for k in KEPALA_ROLE_KEYWORDS)
-    has_guru = any(k in lower_text for k in GURU_ROLE_KEYWORDS)
+    try:
+        num_cols = len(table.columns)
+    except Exception:
+        num_cols = max((len(r.cells) for r in table.rows), default=0)
 
-    return has_kepala and has_guru
+    if num_cols < 2 or num_cols > 4:
+        return False
+
+    roles = set()
+    for c_idx in range(num_cols):
+        col_paras = []
+        for row in table.rows[:6]:
+            if c_idx < len(row.cells):
+                col_paras.extend(row.cells[c_idx].paragraphs)
+        role = classify_zone_role(col_paras[:6])
+        if role in ("KEPALA", "GURU"):
+            roles.add(role)
+
+    return ("KEPALA" in roles and "GURU" in roles)
 
 
 def classify_zone_role(paragraphs: List[Paragraph]) -> str:
     """
     Menentukan peran kolom/zona: 'KEPALA', 'GURU', atau 'UNKNOWN'.
     """
-    for p in paragraphs[:4]:  # Cek 4 baris teratas
+    for p in paragraphs[:6]:  # Cek sampai 6 baris teratas
         text = get_paragraph_text(p).lower()
         if any(k in text for k in KEPALA_ROLE_KEYWORDS):
             return "KEPALA"

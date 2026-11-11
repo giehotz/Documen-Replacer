@@ -688,6 +688,35 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         xml = out_doc.tables[0].rows[2].cells[0].paragraphs[0]._element.xml
         self.assertIn('behindDoc="1"', xml)
 
+    def test_table_cell_span_single_column_identity(self):
+        """Memastikan tabel 1-kolom berformat label : placeholder dapat dideteksi dan diganti dengan TABLE_CELL_SPAN."""
+        doc = Document()
+        tbl = doc.add_table(rows=1, cols=1)
+        cell = tbl.rows[0].cells[0]
+        cell.paragraphs[0].text = "Nama Sekolah : ................................................"
+        p2 = cell.add_paragraph("Nama Penyusun : ................................................")
+
+        test_in = os.path.join(self.test_dir, "test_1col_in.docx")
+        test_out = os.path.join(self.test_dir, "test_1col_out.docx")
+        doc.save(test_in)
+
+        rules = [
+            {"label": "Nama Madrasah", "old": "", "new": "MIN 2 Tanggamus"},
+            {"label": "Nama Guru Mata Pelajaran", "old": "", "new": "Dwi Putri Ayu Andari, S.Pd"},
+        ]
+
+        plan = self.engine.plan_document_changes(test_in, "test_1col_in.docx", rules)
+        self.assertEqual(len(plan), 2)
+        self.assertTrue(all(it.target_type == "TABLE_CELL_SPAN" for it in plan))
+
+        applied = self.engine.apply_approved_changes(test_in, test_out, plan)
+        self.assertEqual(applied, 2)
+
+        out_doc = Document(test_out)
+        paras = out_doc.tables[0].rows[0].cells[0].paragraphs
+        self.assertIn("MIN 2 Tanggamus", paras[0].text)
+        self.assertIn("Dwi Putri Ayu Andari, S.Pd", paras[1].text)
+
 
 if __name__ == "__main__":
     unittest.main()

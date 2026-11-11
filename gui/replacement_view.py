@@ -5,11 +5,15 @@ Mendukung kolom Teks Lama opsional dan pilihan Mode Pencarian.
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
+import os
+import logging
 from typing import List, Dict, Any, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 class ReplacementView(ttk.LabelFrame):
-    def __init__(self, parent, **kwargs):
+    def __init__(self, parent, get_input_dir=None, **kwargs):
         super().__init__(
             parent,
             text=" 2. Aturan Penggantian Data (Kolom 'Teks Lama' opsional / otomatis dicari jika kosong) ",
@@ -17,6 +21,7 @@ class ReplacementView(ttk.LabelFrame):
             **kwargs
         )
         self.rows_data: List[Tuple[ttk.Entry, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]] = []
+        self.get_input_dir = get_input_dir
 
         self.search_mode_var = tk.StringVar(value="GABUNGAN")
 
@@ -74,6 +79,8 @@ class ReplacementView(ttk.LabelFrame):
         self.btn_add_row.pack(side="left")
         self.btn_sig_designer = ttk.Button(bar, text="✍ Atur Tanda Tangan Digital...", command=self._open_signature_designer)
         self.btn_sig_designer.pack(side="left", padx=(10, 0))
+        self.btn_predict = ttk.Button(bar, text="🔍 Prediksi dari Dokumen...", command=self._open_predict_menu)
+        self.btn_predict.pack(side="left", padx=(10, 0))
         self.btn_save_preset = ttk.Button(bar, text="Simpan Profil (.json)", command=self.save_preset)
         self.btn_save_preset.pack(side="right", padx=(5, 0))
         self.btn_load_preset = ttk.Button(bar, text="Muat Profil (.json)", command=self.load_preset)
@@ -162,6 +169,7 @@ class ReplacementView(ttk.LabelFrame):
     def _set_replacement_rules_state(self, state: str):
         """Mengubah status input rules (normal / disabled)."""
         self.btn_add_row.configure(state=state)
+        self.btn_predict.configure(state=state)
         self.btn_save_preset.configure(state=state)
         self.btn_load_preset.configure(state=state)
         for lbl, old, new, frame, btn_del in self.rows_data:
@@ -202,8 +210,22 @@ class ReplacementView(ttk.LabelFrame):
         from gui.signature_designer_dialog import SignatureDesignerDialog
         SignatureDesignerDialog(self.winfo_toplevel())
 
+    @staticmethod
+    def _get_config_dir() -> str:
+        """Mengembalikan path direktori config proyek secara dinamis dan portabel antar perangkat/lokasi."""
+        import sys
+        if getattr(sys, "frozen", False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        cfg_dir = os.path.join(base_dir, "config")
+        os.makedirs(cfg_dir, exist_ok=True)
+        return cfg_dir
+
     def save_preset(self):
+        cfg_dir = self._get_config_dir()
         path = filedialog.asksaveasfilename(
+            initialdir=cfg_dir,
             defaultextension=".json",
             filetypes=[("JSON Preset", "*.json")],
             title="Simpan Profil Aturan"
@@ -219,7 +241,9 @@ class ReplacementView(ttk.LabelFrame):
             messagebox.showerror("Gagal", f"Gagal menyimpan profil:\n{e}")
 
     def load_preset(self):
+        cfg_dir = self._get_config_dir()
         path = filedialog.askopenfilename(
+            initialdir=cfg_dir,
             filetypes=[("JSON Preset", "*.json")],
             title="Pilih File Profil Aturan (.json)"
         )
@@ -243,3 +267,96 @@ class ReplacementView(ttk.LabelFrame):
                 item.get("old", ""),
                 item.get("new", "")
             )
+
+    def apply_rules_to_table(self, rules: List[Dict[str, str]]):
+        """Menerapkan daftar aturan ke dalam tabel input GUI."""
+        for item in list(self.rows_data):
+            item[3].destroy()
+        self.rows_data.clear()
+
+        for item in rules:
+            self.add_row(
+                item.get("label", ""),
+                item.get("old", ""),
+                item.get("new", "")
+            )
+
+    def _open_predict_menu(self):
+        """Menampilkan popup menu opsi prediksi dokumen."""
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(
+            label="📄 Pilih 1 File Dokumen Contoh (.docx, .doc)...",
+            command=self._predict_from_single_file
+        )
+        menu.add_command(
+            label="📁 Pindai Seluruh Folder Dokumen Input...",
+            command=self._predict_from_folder
+        )
+        try:
+            x = self.btn_predict.winfo_rootx()
+            y = self.btn_predict.winfo_rooty() + self.btn_predict.winfo_height()
+            menu.tk_popup(x, y)
+        except (tk.TclError, RuntimeError) as e:
+            logger.warning("Gagal menampilkan popup menu prediksi (%s), fallback ke dialog berkas tunggal.", e)
+            self._predict_from_single_file()
+
+    def _predict_from_single_file(self):
+        """Menganalisis 1 file Word (.docx / .doc) contoh dan mengisi tabel secara cerdas."""
+        path = filedialog.askopenfilename(
+            filetypes=[
+                ("Semua Dokumen Word", "*.docx;*.doc"),
+                ("Word Modern (*.docx)", "*.docx"),
+                ("Word Lawas (*.doc)", "*.doc"),
+                ("Semua File", "*.*")
+            ],
+            title="Pilih 1 File Dokumen Contoh untuk Dianalisis"
+        )
+        if not path:
+            return
+
+        from core.document_predictor import predict_rules_from_file
+        try:
+            current_rules = self.get_rules()
+            merged_rules = predict_rules_from_file(path, current_rules=current_rules)
+            self.apply_rules_to_table(merged_rules)
+            filename = os.path.basename(path)
+            messagebox.showinfo(
+                "Prediksi Dokumen Berhasil",
+                f"Selesai menganalisis dokumen contoh:\n{filename}\n\n"
+                f"• {len(merged_rules)} aturan penggantian berhasil disiapkan.\n"
+                f"• Kolom 'Teks Lama' telah disesuaikan dengan format dokumen.\n"
+                f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan.\n\n"
+                f"Silakan periksa isian atau klik 'Simpan Profil (.json)' untuk menyimpannya."
+            )
+        except Exception as e:
+            messagebox.showerror("Gagal Menganalisis Dokumen", f"Terjadi kesalahan saat membaca dokumen:\n{e}")
+
+    def _predict_from_folder(self):
+        """Memindai seluruh dokumen dalam folder input dan mengumpulkan variasi unik."""
+        target_dir = ""
+        if self.get_input_dir:
+            try:
+                target_dir = self.get_input_dir().strip()
+            except Exception:
+                target_dir = ""
+
+        if not target_dir or not os.path.isdir(target_dir):
+            target_dir = filedialog.askdirectory(title="Pilih Folder Dokumen (.docx) yang Ingin Dipindai")
+            if not target_dir:
+                return
+
+        from core.document_predictor import predict_rules_from_folder
+        try:
+            current_rules = self.get_rules()
+            merged_rules = predict_rules_from_folder(target_dir, current_rules=current_rules)
+            self.apply_rules_to_table(merged_rules)
+            folder_name = os.path.basename(target_dir) or target_dir
+            messagebox.showinfo(
+                "Pemindaian Folder Berhasil",
+                f"Selesai memindai folder dokumen:\n{folder_name}\n\n"
+                f"• {len(merged_rules)} aturan (termasuk semua variasi format unik) berhasil disiapkan.\n"
+                f"• Kolom 'Teks Lama' siap mencakup seluruh variasi dokumen.\n"
+                f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan."
+            )
+        except Exception as e:
+            messagebox.showerror("Gagal Memindai Folder", f"Terjadi kesalahan saat memindai folder:\n{e}")

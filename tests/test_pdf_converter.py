@@ -8,6 +8,7 @@ Menguji:
 """
 import os
 import shutil
+import tempfile
 import unittest
 from unittest import mock
 from docx import Document
@@ -19,18 +20,15 @@ from core.pdf_converter.word_com_engine import WordComConverter
 
 class TestPdfConverter(unittest.TestCase):
     def setUp(self):
-        self.test_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "temp_pdf_test"))
+        self.test_dir = tempfile.mkdtemp(prefix="test_pdf_")
         self.src_dir = os.path.join(self.test_dir, "src")
         self.out_dir = os.path.join(self.test_dir, "out")
         os.makedirs(self.src_dir, exist_ok=True)
         os.makedirs(self.out_dir, exist_ok=True)
 
     def tearDown(self):
-        if os.path.exists(self.test_dir):
-            try:
-                shutil.rmtree(self.test_dir)
-            except Exception:
-                pass
+        if hasattr(self, "test_dir") and os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_docitem_properties(self):
         """Uji format ukuran file pada DocItem."""

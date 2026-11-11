@@ -11,8 +11,9 @@ import queue
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Set, Optional
 
+from core.doc_compat_service import is_supported_word_file
 from core.replacement_engine import ReplacementEngine
 from core.validation_engine import ReplacementPlanItem, ConfidenceLevel
 from gui.replacement_view import ReplacementView
@@ -93,7 +94,7 @@ class SmartRPPReplacerApp:
     def _build_replacer_tab(self, parent: ttk.Frame):
         """Membangun antarmuka Tab 1: Penggantian RPP."""
         # 1. Panel Folder
-        folder_frame = ttk.LabelFrame(parent, text=" 1. Lokasi Folder Dokumen (.docx) ", padding=10)
+        folder_frame = ttk.LabelFrame(parent, text=" 1. Lokasi Folder Dokumen Word (.docx, .doc) ", padding=10)
         folder_frame.pack(fill="x", padx=10, pady=(8, 4))
         folder_frame.columnconfigure(1, weight=1)
 
@@ -122,7 +123,7 @@ class SmartRPPReplacerApp:
         ttk.Checkbutton(opts_frame, text="Langsung ekspor ke PDF setelah selesai", variable=self.auto_pdf_var).pack(side="left")
 
         # 2. Panel Aturan Penggantian
-        self.replacement_view = ReplacementView(parent)
+        self.replacement_view = ReplacementView(parent, get_input_dir=lambda: self.input_dir_var.get())
         self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
         # 3. Panel Bawah (Eksekusi & Log)
@@ -177,8 +178,12 @@ class SmartRPPReplacerApp:
                 elif kind == "progress":
                     self.progress["value"] = payload
                 elif kind == "show_preview":
-                    plan_items, files, out_dir = payload
-                    self._handle_preview_dialog(plan_items, files, out_dir)
+                    if len(payload) == 4:
+                        plan_items, files, out_dir, failed_planning_rels = payload
+                    else:
+                        plan_items, files, out_dir = payload
+                        failed_planning_rels = set()
+                    self._handle_preview_dialog(plan_items, files, out_dir, failed_planning_rels)
                 elif kind == "done":
                     out_dir = payload
                     self.btn_process.configure(state="normal")
@@ -214,26 +219,34 @@ class SmartRPPReplacerApp:
         if tanya:
             self.tab_pdf.start_conversion()
 
-    def _handle_preview_dialog(self, plan_items: List[ReplacementPlanItem], files: List[Tuple[str, str]], out_dir: str):
-        if not plan_items:
+    def _handle_preview_dialog(
+        self,
+        plan_items: List[ReplacementPlanItem],
+        files: List[Tuple[str, str]],
+        out_dir: str,
+        failed_planning_rels: Optional[Set[str]] = None
+    ):
+        failed_planning_rels = failed_planning_rels or set()
+        if not plan_items and not failed_planning_rels:
             self.btn_process.configure(state="normal")
             messagebox.showinfo("Info", "Tidak ditemukan teks atau struktur dokumen yang cocok dengan aturan.")
             return
 
-        dialog = IntegratedPreviewDialog(self.root, plan_items)
-        self.root.wait_window(dialog)
+        if plan_items:
+            dialog = IntegratedPreviewDialog(self.root, plan_items)
+            self.root.wait_window(dialog)
 
-        if not dialog.confirmed:
-            self.btn_process.configure(state="normal")
-            self._log("[INFO] Pemrosesan dibatalkan oleh pengguna dari jendela pratinjau.")
-            return
+            if not dialog.confirmed:
+                self.btn_process.configure(state="normal")
+                self._log("[INFO] Pemrosesan dibatalkan oleh pengguna dari jendela pratinjau.")
+                return
 
         # Eksekusi penulisan file berdasarkan item yang disetujui
         self._log("--- Menerapkan perubahan yang disetujui ke dokumen ---")
         self.progress.configure(maximum=len(files), value=0)
         threading.Thread(
             target=self._worker_apply,
-            args=(files, out_dir, plan_items),
+            args=(files, out_dir, plan_items, failed_planning_rels),
             daemon=True
         ).start()
 
@@ -244,13 +257,13 @@ class SmartRPPReplacerApp:
             for base, dirs, names in os.walk(in_dir):
                 dirs[:] = [d for d in dirs if os.path.abspath(os.path.join(base, d)) != out_abs]
                 for n in names:
-                    if n.lower().endswith(".docx") and not n.startswith("~$"):
+                    if is_supported_word_file(n):
                         full = os.path.join(base, n)
                         result.append((full, os.path.relpath(full, in_dir)))
         else:
             for n in os.listdir(in_dir):
                 full = os.path.join(in_dir, n)
-                if os.path.isfile(full) and n.lower().endswith(".docx") and not n.startswith("~$"):
+                if os.path.isfile(full) and is_supported_word_file(n):
                     result.append((full, n))
         return result
 
@@ -294,7 +307,7 @@ class SmartRPPReplacerApp:
 
         files = self._collect_files(in_dir, out_dir, self.sub_var.get())
         if not files:
-            messagebox.showinfo("Info", "Tidak ditemukan file .docx di folder input.")
+            messagebox.showinfo("Info", "Tidak ditemukan file Word (.docx atau .doc) di folder input.")
             return
 
         case_sensitive = self.case_var.get()
@@ -324,6 +337,7 @@ class SmartRPPReplacerApp:
 
     def _worker_plan(self, files: List[Tuple[str, str]], out_dir: str, rules: List[Dict[str, str]], mode: str, case_sensitive: bool, skip_low: bool):
         all_plan_items: List[ReplacementPlanItem] = []
+        failed_planning_rels: Set[str] = set()
         for idx, (full, rel) in enumerate(files, 1):
             try:
                 items = self.engine.plan_document_changes(full, rel, rules, mode, case_sensitive)
@@ -332,19 +346,37 @@ class SmartRPPReplacerApp:
                         it.is_approved = False
                 all_plan_items.extend(items)
             except Exception as e:
+                failed_planning_rels.add(rel)
                 self.msg_queue.put(("log", f"[GAGAL PINDAI] {rel} -> {e}"))
             self.msg_queue.put(("progress", idx))
 
-        self.msg_queue.put(("show_preview", (all_plan_items, files, out_dir)))
+        self.msg_queue.put(("show_preview", (all_plan_items, files, out_dir, failed_planning_rels)))
 
-    def _worker_apply(self, files: List[Tuple[str, str]], out_dir: str, plan_items: List[ReplacementPlanItem]):
+    def _worker_apply(
+        self,
+        files: List[Tuple[str, str]],
+        out_dir: str,
+        plan_items: List[ReplacementPlanItem],
+        failed_planning_rels: Optional[Set[str]] = None
+    ):
+        failed_planning_rels = failed_planning_rels or set()
         # Kelompokkan item yang disetujui berdasarkan rel_path
         items_by_rel: Dict[str, List[ReplacementPlanItem]] = {}
         for it in plan_items:
             items_by_rel.setdefault(it.rel_path, []).append(it)
 
         for idx, (full, rel) in enumerate(files, 1):
-            out_file = os.path.join(out_dir, rel)
+            root_name, ext = os.path.splitext(rel)
+            out_rel = (root_name + ".docx") if ext.lower() == ".doc" else rel
+            out_file = os.path.join(out_dir, out_rel)
+            disp_rel = f"{rel} -> {out_rel}" if out_rel != rel else rel
+
+            if rel in failed_planning_rels:
+                self.report_service.record_document(disp_rel, "FAILED", 0, error_msg="Gagal pada tahap pemindaian/analisis dokumen")
+                self.msg_queue.put(("log", f"[GAGAL PINDAI] {rel} dilewati"))
+                self.msg_queue.put(("progress", idx))
+                continue
+
             file_items = items_by_rel.get(rel, [])
             approved_file_items = [it for it in file_items if it.is_approved]
 
@@ -356,19 +388,23 @@ class SmartRPPReplacerApp:
                 os.makedirs(os.path.dirname(out_file), exist_ok=True)
                 if approved_file_items:
                     changes = self.engine.apply_approved_changes(full, out_file, approved_file_items)
-                    self.report_service.record_document(rel, "SUCCESS", changes, cat_breakdown)
-                    self.msg_queue.put(("log", f"[BERHASIL] {rel} ({changes} titik diganti)"))
+                    self.report_service.record_document(disp_rel, "SUCCESS", changes, cat_breakdown)
+                    self.msg_queue.put(("log", f"[BERHASIL] {disp_rel} ({changes} titik diganti)"))
                 else:
-                    # Tidak ada perubahan disetujui untuk file ini (S2: Salin cepat tanpa re-kompresi)
-                    shutil.copy2(full, out_file)
-                    self.report_service.record_document(rel, "UNCHANGED", 0)
-                    self.msg_queue.put(("log", f"[TIDAK BERUBAH] {rel}"))
+                    # Tidak ada perubahan disetujui untuk file ini
+                    if full.lower().endswith(".doc") and out_file.lower().endswith(".docx"):
+                        from core.doc_compat_service import convert_doc_to_docx
+                        convert_doc_to_docx(full, out_file)
+                    else:
+                        shutil.copy2(full, out_file)
+                    self.report_service.record_document(disp_rel, "UNCHANGED", 0)
+                    self.msg_queue.put(("log", f"[TIDAK BERUBAH] {disp_rel}"))
             except PermissionError:
-                self.report_service.record_document(rel, "FAILED", 0, error_msg="File sedang dibuka di Word")
-                self.msg_queue.put(("log", f"[GAGAL] {rel} -> file sedang dibuka di Word"))
+                self.report_service.record_document(disp_rel, "FAILED", 0, error_msg="File sedang dibuka di Word")
+                self.msg_queue.put(("log", f"[GAGAL] {disp_rel} -> file sedang dibuka di Word"))
             except Exception as e:
-                self.report_service.record_document(rel, "FAILED", 0, error_msg=str(e))
-                self.msg_queue.put(("log", f"[GAGAL] {rel} -> {e}"))
+                self.report_service.record_document(disp_rel, "FAILED", 0, error_msg=str(e))
+                self.msg_queue.put(("log", f"[GAGAL] {disp_rel} -> {e}"))
 
             self.msg_queue.put(("progress", idx))
 
@@ -377,7 +413,10 @@ class SmartRPPReplacerApp:
 
     def _worker_direct(self, files: List[Tuple[str, str]], out_dir: str, rules: List[Dict[str, str]], mode: str, case_sensitive: bool, skip_low: bool):
         for idx, (full, rel) in enumerate(files, 1):
-            out_file = os.path.join(out_dir, rel)
+            root_name, ext = os.path.splitext(rel)
+            out_rel = (root_name + ".docx") if ext.lower() == ".doc" else rel
+            out_file = os.path.join(out_dir, out_rel)
+            disp_rel = f"{rel} -> {out_rel}" if out_rel != rel else rel
             try:
                 os.makedirs(os.path.dirname(out_file), exist_ok=True)
                 # S3: Hitung breakdown kategori agar laporan eksekutif lengkap di mode langsung
@@ -394,18 +433,22 @@ class SmartRPPReplacerApp:
 
                 if any(it.is_approved for it in approved):
                     changes = self.engine.apply_approved_changes(full, out_file, approved)
-                    self.report_service.record_document(rel, "SUCCESS", changes, cat_breakdown)
-                    self.msg_queue.put(("log", f"[BERHASIL] {rel} ({changes} titik diganti)"))
+                    self.report_service.record_document(disp_rel, "SUCCESS", changes, cat_breakdown)
+                    self.msg_queue.put(("log", f"[BERHASIL] {disp_rel} ({changes} titik diganti)"))
                 else:
-                    shutil.copy2(full, out_file)
-                    self.report_service.record_document(rel, "UNCHANGED", 0)
-                    self.msg_queue.put(("log", f"[TIDAK BERUBAH] {rel}"))
+                    if full.lower().endswith(".doc") and out_file.lower().endswith(".docx"):
+                        from core.doc_compat_service import convert_doc_to_docx
+                        convert_doc_to_docx(full, out_file)
+                    else:
+                        shutil.copy2(full, out_file)
+                    self.report_service.record_document(disp_rel, "UNCHANGED", 0)
+                    self.msg_queue.put(("log", f"[TIDAK BERUBAH] {disp_rel}"))
             except PermissionError:
-                self.report_service.record_document(rel, "FAILED", 0, error_msg="File sedang dibuka di Word")
-                self.msg_queue.put(("log", f"[GAGAL] {rel} -> file sedang dibuka di Word"))
+                self.report_service.record_document(disp_rel, "FAILED", 0, error_msg="File sedang dibuka di Word")
+                self.msg_queue.put(("log", f"[GAGAL] {disp_rel} -> file sedang dibuka di Word"))
             except Exception as e:
-                self.report_service.record_document(rel, "FAILED", 0, error_msg=str(e))
-                self.msg_queue.put(("log", f"[GAGAL] {rel} -> {e}"))
+                self.report_service.record_document(disp_rel, "FAILED", 0, error_msg=str(e))
+                self.msg_queue.put(("log", f"[GAGAL] {disp_rel} -> {e}"))
 
             self.msg_queue.put(("progress", idx))
 
