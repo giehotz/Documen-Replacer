@@ -1,9 +1,9 @@
 """
-Jendela Utama Aplikasi Smart RPP Replacer (Tkinter GUI).
+Jendela Utama Aplikasi Smart RPP Replacer & Word to PDF Converter (Tkinter GUI).
 Mengintegrasikan:
-- Tampilan aturan baris & pemilih mode (ReplacementView)
-- Opsi pratinjau interaktif (IntegratedPreviewDialog)
-- Layanan pelaporan eksekutif (ReportService & ReportDialog)
+- Tab 1: Penggantian RPP, aturan data, tanda tangan digital, pratinjau, dan eksekusi batch
+- Tab 2: Modul Konversi Word ke PDF massal dengan antrean berkas dan progress bar
+- Opsi ekspor otomatis ke PDF pasca pengeditan dokumen
 """
 import os
 import shutil
@@ -18,6 +18,7 @@ from core.validation_engine import ReplacementPlanItem, ConfidenceLevel
 from gui.replacement_view import ReplacementView
 from gui.preview_view import IntegratedPreviewDialog
 from gui.report_view import ReportDialog
+from gui.pdf_converter_view import PdfConverterView
 from services.report_service import ReportService
 
 BASE_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Documents", "MODUL", "Edited")
@@ -60,9 +61,9 @@ def resolve_output_subfolder(input_path: str, base_docs_dir: str = "") -> str:
 class SmartRPPReplacerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Smart RPP Replacer - Otomasi Edit RPP & Modul Ajar (.docx)")
-        self.root.geometry("940x780")
-        self.root.minsize(840, 640)
+        self.root.title("Smart RPP Replacer & Word to PDF Converter")
+        self.root.geometry("1020x820")
+        self.root.minsize(880, 680)
 
         self.engine = ReplacementEngine()
         self.report_service = ReportService()
@@ -72,9 +73,28 @@ class SmartRPPReplacerApp:
         self.root.after(100, self._poll_queue)
 
     def _build_ui(self):
+        # Container Utama: Tab Bar (Notebook) di Bagian Atas
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=6, pady=(6, 2))
+
+        # =====================================================================
+        # TAB 1: PENGGANTIAN DATA DOKUMEN & TANDA TANGAN
+        # =====================================================================
+        self.tab_replacer = ttk.Frame(self.notebook)
+        self.notebook.add(self.tab_replacer, text=" 📝 Penggantian Data RPP & Tanda Tangan ")
+        self._build_replacer_tab(self.tab_replacer)
+
+        # =====================================================================
+        # TAB 2: KONVERSI WORD KE PDF
+        # =====================================================================
+        self.tab_pdf = PdfConverterView(self.notebook, on_status_msg=self._log)
+        self.notebook.add(self.tab_pdf, text=" 📄 Konversi Word ke PDF ")
+
+    def _build_replacer_tab(self, parent: ttk.Frame):
+        """Membangun antarmuka Tab 1: Penggantian RPP."""
         # 1. Panel Folder
-        folder_frame = ttk.LabelFrame(self.root, text=" 1. Lokasi Folder Dokumen (.docx) ", padding=10)
-        folder_frame.pack(fill="x", padx=12, pady=(10, 5))
+        folder_frame = ttk.LabelFrame(parent, text=" 1. Lokasi Folder Dokumen (.docx) ", padding=10)
+        folder_frame.pack(fill="x", padx=10, pady=(8, 4))
         folder_frame.columnconfigure(1, weight=1)
 
         ttk.Label(folder_frame, text="Folder Asli (Input):").grid(row=0, column=0, sticky="w", pady=3)
@@ -93,18 +113,20 @@ class SmartRPPReplacerApp:
         self.sub_var = tk.BooleanVar(value=False)
         self.preview_var = tk.BooleanVar(value=True)
         self.skip_low_var = tk.BooleanVar(value=True)
+        self.auto_pdf_var = tk.BooleanVar(value=False)
 
-        ttk.Checkbutton(opts_frame, text="Peka huruf besar/kecil", variable=self.case_var).pack(side="left", padx=(0, 12))
-        ttk.Checkbutton(opts_frame, text="Sertakan subfolder", variable=self.sub_var).pack(side="left", padx=(0, 12))
-        ttk.Checkbutton(opts_frame, text="Tampilkan pratinjau sebelum menyimpan", variable=self.preview_var).pack(side="left", padx=(0, 12))
-        ttk.Checkbutton(opts_frame, text="Lewati keyakinan rendah otomatis", variable=self.skip_low_var).pack(side="left")
+        ttk.Checkbutton(opts_frame, text="Peka huruf besar/kecil", variable=self.case_var).pack(side="left", padx=(0, 10))
+        ttk.Checkbutton(opts_frame, text="Sertakan subfolder", variable=self.sub_var).pack(side="left", padx=(0, 10))
+        ttk.Checkbutton(opts_frame, text="Tampilkan pratinjau", variable=self.preview_var).pack(side="left", padx=(0, 10))
+        ttk.Checkbutton(opts_frame, text="Lewati keyakinan rendah", variable=self.skip_low_var).pack(side="left", padx=(0, 10))
+        ttk.Checkbutton(opts_frame, text="Langsung ekspor ke PDF setelah selesai", variable=self.auto_pdf_var).pack(side="left")
 
         # 2. Panel Aturan Penggantian
-        self.replacement_view = ReplacementView(self.root)
-        self.replacement_view.pack(fill="both", expand=True, padx=12, pady=5)
+        self.replacement_view = ReplacementView(parent)
+        self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
         # 3. Panel Bawah (Eksekusi & Log)
-        bottom_frame = ttk.Frame(self.root, padding=10)
+        bottom_frame = ttk.Frame(parent, padding=8)
         bottom_frame.pack(fill="x", padx=2, pady=2)
 
         self.btn_process = ttk.Button(
@@ -112,14 +134,14 @@ class SmartRPPReplacerApp:
             text="PROSES SEMUA DOKUMEN SEKARANG",
             command=self._start_processing
         )
-        self.btn_process.pack(fill="x", ipady=6, pady=(0, 6))
+        self.btn_process.pack(fill="x", ipady=5, pady=(0, 5))
 
         self.progress = ttk.Progressbar(bottom_frame, mode="determinate")
-        self.progress.pack(fill="x", pady=(0, 6))
+        self.progress.pack(fill="x", pady=(0, 5))
 
         self.log_box = tk.Text(
             bottom_frame,
-            height=7,
+            height=6,
             state="disabled",
             bg="#1e1e1e",
             fg="#d4d4d4",
@@ -162,10 +184,35 @@ class SmartRPPReplacerApp:
                     self.btn_process.configure(state="normal")
                     self._log(f"--- Selesai! Dokumen dan laporan disimpan di: {out_dir} ---\n")
                     # Tampilkan dialog laporan eksekutif
-                    ReportDialog(self.root, self.report_service, out_dir)
+                    dialog = ReportDialog(self.root, self.report_service, out_dir)
+
+                    # Picu konversi PDF hanya setelah dialog laporan ditutup, agar
+                    # prompt tidak bertabrakan dengan grab_set() dialog laporan.
+                    if self.auto_pdf_var.get():
+                        self.root.wait_window(dialog)
+                        self._trigger_auto_pdf_export(out_dir)
+
         except queue.Empty:
             pass
         self.root.after(100, self._poll_queue)
+
+    def _trigger_auto_pdf_export(self, out_dir: str):
+        """Memindahkan alur kerja ke Tab 2 untuk mengekspor dokumen hasil edit ke PDF."""
+        # Pindahkan tab aktif ke Tab 2 (PDF Converter)
+        self.notebook.select(self.tab_pdf)
+        pdf_out_dir = os.path.join(out_dir, "PDF")
+        self.tab_pdf.source_dir_var.set(os.path.normpath(out_dir))
+        self.tab_pdf.target_dir_var.set(os.path.normpath(pdf_out_dir))
+        self.tab_pdf.scan_documents()
+
+        tanya = messagebox.askyesno(
+            "Ekspor Otomatis ke PDF",
+            f"Dokumen Word berhasil diperbarui di:\n{out_dir}\n\n"
+            f"Opsi 'Langsung ekspor ke PDF' aktif.\n"
+            f"Apakah Anda ingin memulai konversi {len(self.tab_pdf.items)} dokumen ke PDF sekarang?"
+        )
+        if tanya:
+            self.tab_pdf.start_conversion()
 
     def _handle_preview_dialog(self, plan_items: List[ReplacementPlanItem], files: List[Tuple[str, str]], out_dir: str):
         if not plan_items:
@@ -184,7 +231,6 @@ class SmartRPPReplacerApp:
         # Eksekusi penulisan file berdasarkan item yang disetujui
         self._log("--- Menerapkan perubahan yang disetujui ke dokumen ---")
         self.progress.configure(maximum=len(files), value=0)
-
         threading.Thread(
             target=self._worker_apply,
             args=(files, out_dir, plan_items),

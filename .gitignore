@@ -6,6 +6,7 @@
 # --- Artefak Pengujian & Output Sementara ---
 tests/real_out/
 tests/temp_dbg/
+tests/temp_pdf_test/
 tests/temp_sig*
 test_*.docx
 test_*.png
