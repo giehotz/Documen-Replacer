@@ -3,7 +3,7 @@ Modul Prediksi Dokumen & Generator Aturan Cerdas.
 Membaca dokumen Word (.docx / .doc) contoh atau folder dokumen, mendeteksi struktur & format unik,
 mengekstrak teks lama / placeholder yang ada, dan menyarankan daftar aturan penggantian data.
 """
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Set, Optional, Tuple, Any
 import os
 import re
 import logging
@@ -412,3 +412,79 @@ def predict_rules_from_folder(
     if current_rules:
         return smart_merge_rules(current_rules, all_predicted)
     return all_predicted
+
+
+def collect_unknown_labels(
+    path_or_dir: str,
+    dictionary: Optional[Any] = None,
+    max_labels: int = 200
+) -> Dict[str, int]:
+    """
+    Mengumpulkan label berdekatan dengan placeholder / isian yang tidak cocok ke field mana pun di kamus.
+    Mengembalikan dictionary: {label_tidak_dikenal: jumlah_kemunculan}.
+    """
+    if dictionary is None:
+        from core.field_dictionary import FieldDictionary
+        dictionary = FieldDictionary.load()
+
+    file_paths: List[str] = []
+    if os.path.isfile(path_or_dir):
+        file_paths.append(path_or_dir)
+    elif os.path.isdir(path_or_dir):
+        from core.doc_compat_service import is_supported_word_file
+        for root, _, files in os.walk(path_or_dir):
+            for f in files:
+                if is_supported_word_file(f):
+                    file_paths.append(os.path.join(root, f))
+    else:
+        return {}
+
+    unknown_counts: Dict[str, int] = {}
+
+    def consider_label(raw_lbl: str):
+        clean_lbl = raw_lbl.strip().rstrip(":").strip()
+        if not clean_lbl or len(clean_lbl) > 60 or len(clean_lbl) < 3:
+            return
+        if clean_lbl.isdigit() or re.match(r"^[\W_]+$", clean_lbl):
+            return
+
+        res = dictionary.resolve(clean_lbl)
+        if res.field is None:
+            display_candidate = clean_lbl.strip()
+            unknown_counts[display_candidate] = unknown_counts.get(display_candidate, 0) + 1
+
+    for fpath in file_paths:
+        try:
+            doc = load_document(fpath)
+            for table in doc.tables:
+                if is_signature_table(table):
+                    continue
+                for row in table.rows:
+                    cells = row.cells
+                    num_c = len(cells)
+                    if num_c == 1:
+                        for p in cells[0].paragraphs:
+                            t = get_paragraph_text(p).strip()
+                            ext = extract_label_and_placeholder(t)
+                            if ext:
+                                consider_label(ext[0])
+                    elif num_c == 2:
+                        val = cells[1].text.strip()
+                        if not val or is_pure_placeholder(val) or len(val) <= 50:
+                            consider_label(cells[0].text)
+                    elif num_c >= 3 and cells[1].text.strip() == ":":
+                        val = cells[2].text.strip()
+                        if not val or is_pure_placeholder(val) or len(val) <= 50:
+                            consider_label(cells[0].text)
+
+            for p in doc.paragraphs:
+                t = get_paragraph_text(p).strip()
+                ext = extract_label_and_placeholder(t)
+                if ext:
+                    consider_label(ext[0])
+
+        except Exception as e:
+            logger.debug("Gagal memindai unknown labels dari %s: %s", fpath, e)
+
+    sorted_items = sorted(unknown_counts.items(), key=lambda x: x[1], reverse=True)[:max_labels]
+    return dict(sorted_items)

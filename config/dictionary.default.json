@@ -1,0 +1,189 @@
+{
+  "version": 2,
+  "fields": [
+    {
+      "id": "nama_lembaga",
+      "category": "Nama Madrasah",
+      "display_label": "Nama Sekolah/Madrasah",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Nama Sekolah",
+        "Nama Madrasah",
+        "Satuan Pendidikan",
+        "Unit Kerja",
+        "Instansi"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "nama_kepala",
+      "category": "Nama Kepala",
+      "display_label": "Nama Kepala Madrasah",
+      "value_type": "person_name",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Kepala Madrasah",
+        "Kepala Sekolah",
+        "Nama Kepala",
+        "Mengetahui Kepala",
+        "Plt. Kepala Sekolah",
+        "Plt. Kepala Madrasah",
+        "Plt. Kepala"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "nip_kepala",
+      "category": "NIP Kepala",
+      "display_label": "NIP Kepala Madrasah",
+      "value_type": "nip",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": [
+        "NIP Kepala",
+        "NIP Kepala Sekolah",
+        "NIP Kepala Madrasah",
+        "NIP."
+      ],
+      "exact_only_synonyms": [
+        "NIP."
+      ],
+      "never_match": []
+    },
+    {
+      "id": "nama_guru",
+      "category": "Nama Guru",
+      "display_label": "Nama Guru Penyusun",
+      "value_type": "person_name",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Nama Penyusun",
+        "Guru Penyusun",
+        "Disusun Oleh",
+        "Penyusun",
+        "Pengembang Modul",
+        "Nama Guru",
+        "Guru Kelas",
+        "Guru Mata Pelajaran",
+        "Guru Bidang Studi",
+        "Pendidik",
+        "Wali Kelas"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": [
+        "jumlah guru"
+      ]
+    },
+    {
+      "id": "nip_guru",
+      "category": "NIP Guru",
+      "display_label": "NIP / NUPTK Guru",
+      "value_type": "nip",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": [
+        "NIP Guru Mata Pelajaran",
+        "NIP Guru Kelas",
+        "NIP Guru",
+        "NUPTK",
+        "Identitas Guru",
+        "NIP Penyusun"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "jabatan_kepala",
+      "category": "Jabatan Kepala",
+      "display_label": "Istilah Jabatan Kepala",
+      "value_type": "role_title",
+      "match_mode": "word_boundary",
+      "priority": 40,
+      "synonyms": [
+        "Jabatan Kepala",
+        "Istilah Jabatan",
+        "Jabatan Pimpinan",
+        "Sebutan Kepala"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "tahun_pelajaran",
+      "category": "Tahun Ajaran",
+      "display_label": "Tahun Pelajaran",
+      "value_type": "year_range",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Tahun Pelajaran",
+        "Tahun Ajaran",
+        "Th. Pelajaran",
+        "Tahun Ajaran Pelajaran"
+      ],
+      "exact_only_synonyms": [
+        "TP"
+      ],
+      "never_match": [
+        "output"
+      ]
+    },
+    {
+      "id": "tahun_penyusunan",
+      "category": "Tahun Penyusunan",
+      "display_label": "Tahun Penyusunan",
+      "value_type": "year_single",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Tahun Penyusunan",
+        "Tahun Pembuatan",
+        "Tahun Disusun"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "semester",
+      "category": "Semester",
+      "display_label": "Semester",
+      "value_type": "semester",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Semester",
+        "Semester Ganjil",
+        "Semester Genap"
+      ],
+      "exact_only_synonyms": [
+        "Smt"
+      ],
+      "never_match": []
+    },
+    {
+      "id": "titimangsa",
+      "category": "Titimangsa",
+      "display_label": "Titimangsa (Tempat, Tgl)",
+      "value_type": "date_place",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "Titimangsa",
+        "Tempat, Tanggal",
+        "Tanggal Pengesahan"
+      ],
+      "exact_only_synonyms": [
+        "Tanggal"
+      ],
+      "never_match": [
+        "tanggal lahir"
+      ]
+    }
+  ]
+}

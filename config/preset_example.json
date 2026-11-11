@@ -1,0 +1,47 @@
+[
+  {
+    "label": "Nama Sekolah/Madrasah",
+    "old": "SD Negeri 1 Contoh",
+    "new": "MIN 1 Contoh"
+  },
+  {
+    "label": "Istilah Jabatan Kepala",
+    "old": "Kepala Sekolah",
+    "new": "Kepala Madrasah"
+  },
+  {
+    "label": "Tahun Ajaran",
+    "old": "2025/2026",
+    "new": "2026/2027"
+  },
+  {
+    "label": "Semester",
+    "old": "Ganjil",
+    "new": "Genap"
+  },
+  {
+    "label": "Nama Kepala Madrasah",
+    "old": "",
+    "new": "Ahmad Dahlan, M.Pd"
+  },
+  {
+    "label": "NIP Kepala Madrasah",
+    "old": "",
+    "new": "198001012005011001"
+  },
+  {
+    "label": "Nama Guru Penyusun",
+    "old": "",
+    "new": "Siti Aminah, S.Pd"
+  },
+  {
+    "label": "NIP / NUPTK Guru",
+    "old": "",
+    "new": "198502022010012002"
+  },
+  {
+    "label": "Titimangsa (Tempat, Tgl)",
+    "old": "",
+    "new": "Jakarta, 15 Juli 2026"
+  }
+]

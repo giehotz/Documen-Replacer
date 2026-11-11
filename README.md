@@ -3,12 +3,12 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(x64)-0078D6.svg)](https://microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests Status](https://img.shields.io/badge/tests-31%2F31%20passing-brightgreen.svg)](tests/)
+[![Tests Status](https://img.shields.io/badge/tests-57%2F57%20passing-brightgreen.svg)](tests/)
 [![Code Style: Clean](https://img.shields.io/badge/architecture-modular-success.svg)](core/)
 
-**Smart RPP Replacer & Word to PDF Converter** adalah aplikasi desktop modern berbasis Python untuk mengotomasi pengeditan dokumen perangkat pembelajaran guru (RPP, Modul Ajar, Silabus, Program Tahunan/PROTA, dan Program Semester/PROMES berformat `.docx`) serta modul terintegrasi untuk konversi massal berkas Microsoft Word ke PDF.
+**Smart RPP Replacer & Word to PDF Converter** adalah aplikasi desktop modern berbasis Python untuk mengotomasi pengeditan dokumen perangkat pembelajaran guru (RPP, Modul Ajar, Silabus, Program Tahunan/PROTA, dan Program Semester/PROMES berformat `.docx` maupun `.doc` lawas) serta modul terintegrasi untuk konversi massal berkas Microsoft Word ke PDF.
 
-Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), desainer posisi tanda tangan digital tingkat lanjut (*Behind Text* untuk dokumen Potrait & Lanskap), dialog pratinjau interaktif, dan mesin konversi PDF massal berpresisi tinggi.
+Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), sistem kamus sinonim field terstruktur (*Field Dictionary*), desainer posisi tanda tangan digital tingkat lanjut (*Behind Text* untuk dokumen Potrait & Lanskap), dialog pratinjau interaktif, generator prediksi aturan otomatis, dan mesin konversi PDF massal berpresisi tinggi.
 
 ---
 
@@ -30,6 +30,11 @@ Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), desa
 ## ✨ Fitur Unggulan
 
 ### 📝 Tab 1: Penggantian Data RPP & Tanda Tangan Digital
+* **Dukungan Penuh Berkas .docx & .doc (Transparan):** Menerima berkas Word modern (`.docx`) dan biner lawas (`.doc`) secara otomatis tanpa perlu konversi manual oleh pengguna.
+* **Kamus Field & Sinonim Kustom (Field Dictionary):** Menggunakan basis schema v2 terstandarisasi (`config/dictionary.default.json`) dengan dialog interaktif **`📖 Kelola Kamus...`** sehingga pengguna dapat menambah variasi istilah lokal sekolah/madrasah sendiri (disimpan aman di profil pengguna `%APPDATA%\SmartRPPReplacer\dictionary.user.json`).
+* **Prediksi Cerdas dari Dokumen (Rule Predictor):** Opsi **`🔍 Prediksi dari Dokumen...`** untuk memindai 1 berkas contoh atau seluruh folder dokumen input, mengekstrak format placeholder konkret, dan menyiapkan tabel aturan penggantian secara instan tanpa hardcoded data pribadi.
+* **Deteksi Label Tak Dikenal (Unknown Labels Dialog):** Pasca-prediksi, sistem otomatis mendeteksi label baru yang belum terdaftar di kamus dan menawarkan dialog untuk memetakannya ke field yang sesuai hanya dengan satu klik.
+* **Validasi Lunak Interaktif & Badge Status:** Indikator badge `✔` (cocok) atau `?` (tak dikenal) di samping pilihan label, serta peringatan format lembut (*soft warning*) jika format NIP, tahun ajaran, atau semester tidak sesuai standar tanpa memblokir proses.
 * **Deteksi Konteks Otomatis (Context-Aware):** Anda tidak wajib mengetahui teks lama di dokumen. Sistem cerdas otomatis mengenali target nama sekolah, kepala madrasah, guru mata pelajaran, NIP, semester, tahun ajaran, dan titimangsa meskipun berwujud titik-titik `..........`, garis bawah `__________`, tanda kurung `(...)`, atau nama guru lama.
 * **4 Mode Pencarian Fleksibel:**
   1. *Gabungan (Disarankan):* Mencocokkan teks persis (*exact match*) terlebih dahulu, lalu melengkapi dengan deteksi cerdas otomatis.
@@ -229,8 +234,11 @@ Documen-Replacer/
 │   │   ├── word_com_engine.py              # Mesin MS Word COM Automation (Thread-Safe)
 │   │   ├── libreoffice_engine.py           # Mesin Fallback LibreOffice Headless
 │   │   └── conversion_manager.py           # Scanner berkas, path resolver, batch worker
+│   ├── doc_compat_service.py               # Jembatan kompatibilitas format .doc & .docx
+│   ├── document_predictor.py               # Generator prediksi aturan dari contoh & scanner unknown labels
 │   ├── exact_matcher.py                    # Pencocokan pola persis regex
-│   ├── label_recognizer.py                 # Pengenal label kategori & alias
+│   ├── field_dictionary.py                 # Engine Kamus Field & sinonim pengguna (schema v2)
+│   ├── label_recognizer.py                 # Pengenal label kategori & alias (bridge FieldDictionary)
 │   ├── placeholder_detector.py             # Detektor placeholder titik-titik & garis bawah
 │   ├── replacement_engine.py               # Mesin penggantian data RPP modular
 │   ├── signature_analyzer.py               # Analisis zona tanda tangan tabel & tabulasi
@@ -240,14 +248,15 @@ Documen-Replacer/
 │
 ├── gui/                                    # Antarmuka Pengguna Desktop (Tkinter)
 │   ├── app.py                              # Jendela utama dengan ttk.Notebook (Tab 1 & 2)
+│   ├── dictionary_dialog.py                # Dialog Pengelola Kamus & Dialog Unknown Labels
 │   ├── pdf_converter_view.py               # Tampilan Tab Konversi Word ke PDF
-│   ├── replacement_view.py                 # Tampilan Aturan Penggantian Data
+│   ├── replacement_view.py                 # Tampilan Aturan Penggantian Data, Combobox & Badges
 │   ├── preview_view.py                     # Dialog Pratinjau Terpadu Interaktif
 │   ├── report_view.py                      # Dialog Laporan Eksekutif Hasil Penggantian
 │   └── signature_designer_dialog.py        # Dialog Desainer Posisi TTD Potrait & Lanskap
 │
 ├── document/                               # Utilitas Manipulasi Berkas Word
-│   ├── docx_reader.py                      # Pembaca dokumen Word OpenXML
+│   ├── docx_reader.py                      # Pembaca dokumen Word OpenXML (.docx & .doc)
 │   ├── docx_writer.py                      # Penyimpan dokumen atomik (anti-corrupt)
 │   └── paragraph_processor.py              # Manipulasi teks run tanpa merusak gambar
 │
@@ -255,15 +264,21 @@ Documen-Replacer/
 │   └── report_service.py                   # Generator laporan eksekutif (TXT & JSON)
 │
 ├── config/                                 # Berkas Konfigurasi & Preset
-│   ├── aliases.json                        # Kamus alias kategori
-│   └── signature_settings.example.json     # Template konfigurasi tanda tangan netral
+│   ├── dictionary.default.json             # Kamus standar 10 field RPP (schema v2)
+│   ├── dictionary.user.example.json        # Template sinonim tambahan kustom pengguna
+│   ├── aliases.json                        # Kamus alias kategori (legacy fallback)
+│   ├── signature_settings.example.json     # Template konfigurasi tanda tangan netral
+│   └── preset_example.json                 # Contoh template profil penggantian data
 │
 ├── docs/                                   # Dokumentasi Teknis & Rancangan
 │   └── fiturtambahan/                      # Spesifikasi fitur lanjutan & PySide6 roadmap
 │
-├── tests/                                  # Unit Test Suite Otomatis
-│   ├── test_smart_engine.py                # 23 tests modul penggantian & TTD
-│   └── test_pdf_converter.py               # 8 tests modul pemindai & konversi PDF
+├── tests/                                  # Unit Test Suite Otomatis (57 Tests)
+│   ├── test_doc_compat.py                  # 6 tests dukungan format .doc & konversi transparan
+│   ├── test_document_predictor.py          # 7 tests prediksi dokumen & smart merge
+│   ├── test_field_dictionary.py            # 10 tests FieldDictionary, dialog & validasi lunak
+│   ├── test_pdf_converter.py               # 10 tests pemindai & konversi PDF
+│   └── test_smart_engine.py                # 24 tests mesin penggantian, TTD, & orientasi
 │
 ├── Jalankan_Smart_RPP_Replacer.bat        # Launcher sekali klik Windows
 ├── main.py                                 # Entry point utama aplikasi
@@ -275,7 +290,7 @@ Documen-Replacer/
 
 ## 🧪 Pengujian & Verifikasi (Test Suite)
 
-Aplikasi memiliki **31 unit test otomatis** dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
+Aplikasi memiliki **57 unit test otomatis** dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
 
 Untuk menjalankan seluruh unit test suite:
 ```powershell
@@ -284,11 +299,14 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Hasil uji yang diharapkan:
 ```text
-Ran 31 tests in ~60s
+Ran 57 tests in ~50s
 OK
 ```
 
 ### Rincian Cakupan Pengujian:
+* **Kamus Field & Sinonim:** Resolusi 10 field standar, proteksi kata jebakan (*never_match*), benturan sinonim pengguna, persistensi user dictionary, dan validasi nilai lunak (*soft warning*).
+* **Kompatibilitas Dokumen .doc & .docx:** Konversi transparan format lama Word 97-2003 (.doc) ke (.docx) via Word COM / LibreOffice, pembacaan instan via `load_document`, dan penyimpanan kembali.
+* **Prediksi Dokumen:** Analisis tabel identitas (1-kolom, 2-kolom, 3-kolom), deteksi format placeholder konkret, penggabungan variasi unik (*smart merge*), dan pengumpulan label tak dikenal (*unknown labels*).
 * **Penggantian Teks:** Exact match, fuzzy matching, case sensitivity, pengenalan label, preservasi style bold/italic/underline pada run Word.
 * **Tanda Tangan Digital:** Penyisipan gambar *behind text*, offset X/Y potrait vs lanskap, persistensi pengaturan JSON, dan pencegahan double counting.
 * **Keamanan Dokumen:** Penyimpanan atomik berkas (`tempfile.mkstemp` + `os.replace`), pengabaian berkas sementara `~$`, dan proteksi type-safety.

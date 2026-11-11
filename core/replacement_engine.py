@@ -48,10 +48,35 @@ logger = logging.getLogger(__name__)
 
 
 class ReplacementEngine:
-    def __init__(self, aliases_path: str = "", signature_settings_path: str = ""):
-        self.aliases = load_aliases(aliases_path)
+    def __init__(
+        self,
+        aliases_path: str = "",
+        signature_settings_path: str = "",
+        field_dictionary: Optional[Any] = None
+    ):
+        if field_dictionary is not None:
+            self.field_dictionary = field_dictionary
+            self.aliases = field_dictionary.to_legacy_aliases()
+        else:
+            try:
+                from core.field_dictionary import FieldDictionary
+                self.field_dictionary = FieldDictionary.load()
+                self.aliases = self.field_dictionary.to_legacy_aliases()
+            except Exception:
+                self.field_dictionary = None
+                self.aliases = load_aliases(aliases_path)
+
         from core.signature_image_service import load_signature_settings
         self.signature_settings = load_signature_settings(signature_settings_path)
+
+    def reload_dictionary(self, user_path: str = "") -> None:
+        """Memuat ulang kamus field dan menyinkronkan kamus aliases pada engine."""
+        try:
+            from core.field_dictionary import FieldDictionary
+            self.field_dictionary = FieldDictionary.load(user_path=user_path)
+            self.aliases = self.field_dictionary.to_legacy_aliases()
+        except Exception as e:
+            logger.warning("Gagal memuat ulang kamus field: %s", e)
 
     # =========================================================================
     # 1. PERENCANAAN PRATINJAU INTERAKTIF (PLANNING PHASE)
@@ -197,11 +222,10 @@ class ReplacementEngine:
         target_values: Dict[str, str],
         mode: str
     ) -> List[ReplacementPlanItem]:
-        from core.signature_image_service import load_signature_settings, is_document_landscape, resolve_signature_settings_for_orientation
-        raw_sig_cfg = load_signature_settings()
+        from core.signature_image_service import is_document_landscape, resolve_signature_settings_for_orientation
+        raw_sig_cfg = self.signature_settings or {}
         is_land = is_document_landscape(doc)
         sig_cfg = resolve_signature_settings_for_orientation(raw_sig_cfg, is_land)
-        self.signature_settings = sig_cfg
 
         items: List[ReplacementPlanItem] = []
         for t_idx, table in enumerate(iter_tables(doc)):
@@ -593,8 +617,8 @@ class ReplacementEngine:
         body_paras = doc.paragraphs
         changes = 0
 
-        from core.signature_image_service import load_signature_settings, is_document_landscape, resolve_signature_settings_for_orientation
-        raw_sig_cfg = signature_settings or load_signature_settings()
+        from core.signature_image_service import is_document_landscape, resolve_signature_settings_for_orientation
+        raw_sig_cfg = signature_settings or self.signature_settings or {}
         is_land = is_document_landscape(doc)
         sig_cfg = resolve_signature_settings_for_orientation(raw_sig_cfg, is_land)
 

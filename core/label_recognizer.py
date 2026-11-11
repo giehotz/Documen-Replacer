@@ -6,10 +6,25 @@ from typing import Dict, List, Optional, Tuple
 import os
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Alias pendek yang wajib cocok persis dengan seluruh teks label (bukan potongan kata)
+SHORT_EXACT_ALIASES = {"tp", "smt", "tanggal"}
 
 
 def load_aliases(config_path: str = "") -> Dict[str, List[str]]:
-    """Memuat kamus aliases dari file JSON. Fallback ke default jika tidak ditemukan."""
+    """Memuat kamus aliases. Memprioritaskan FieldDictionary lalu fallback ke aliases.json."""
+    try:
+        from core.field_dictionary import FieldDictionary
+        f_dict = FieldDictionary.load()
+        aliases_map = f_dict.to_legacy_aliases()
+        if aliases_map:
+            return aliases_map
+    except Exception as e:
+        logger.debug("Tidak dapat memuat aliases dari FieldDictionary (%s). Mencoba berkas json.", e)
+
     if not config_path:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         config_path = os.path.join(base_dir, "config", "aliases.json")
@@ -18,17 +33,17 @@ def load_aliases(config_path: str = "") -> Dict[str, List[str]]:
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Gagal membaca aliases dari %s (%s). Menggunakan kamus bawaan.", config_path, e)
 
-    # Kamus bawaan jika file tidak dapat dibaca
+    # Kamus bawaan darurat jika semua berkas tidak dapat dibaca
     return {
         "Nama Kepala": ["Kepala Madrasah", "Kepala Sekolah", "Nama Kepala", "Mengetahui Kepala", "Plt. Kepala"],
         "NIP Kepala": ["NIP Kepala", "NIP Kepala Sekolah", "NIP Kepala Madrasah", "NIP."],
         "Nama Guru": ["Nama Penyusun", "Guru Penyusun", "Disusun Oleh", "Nama Guru", "Guru Kelas", "Guru Mata Pelajaran", "Pendidik", "Wali Kelas", "Penyusun"],
         "NIP Guru": ["NIP Guru", "NIP Guru Mata Pelajaran", "NIP Guru Kelas", "NUPTK", "Identitas Guru", "NIP Penyusun"],
         "Nama Madrasah": ["Nama Sekolah", "Satuan Pendidikan", "Nama Madrasah", "Unit Kerja", "Instansi"],
-        "Jabatan Kepala": ["Kepala Sekolah", "Kepala Madrasah", "Plt. Kepala"],
+        "Jabatan Kepala": ["Jabatan Kepala", "Istilah Jabatan", "Jabatan Pimpinan"],
         "Tahun Ajaran": ["Tahun Pelajaran", "Tahun Ajaran", "TP", "Th. Pelajaran"],
         "Semester": ["Semester", "Semester Ganjil", "Semester Genap", "Smt"],
         "Titimangsa": ["Titimangsa", "Tempat, Tanggal", "Tanggal Pengesahan", "Tanggal"],
@@ -43,18 +58,26 @@ def normalize_string(text: str) -> str:
     return t
 
 
-def match_category(text: str, aliases: Dict[str, List[str]]) -> Optional[str]:
+def match_category(text: str, aliases: Optional[Dict[str, List[str]]] = None) -> Optional[str]:
     """
-    Mencari kategori yang cocok untuk teks yang diberikan berdasarkan kamus alias.
-    Memprioritaskan pencocokan alias terpanjang terlebih dahulu.
+    Mencari kategori yang cocok untuk teks yang diberikan.
+    Jika aliases tidak disediakan (atau bernilai None), menggunakan resolusi cerdas FieldDictionary.
+    Jika aliases disediakan, mencocokkan dengan word boundary dan exact-only short aliases.
     """
+    if aliases is None:
+        try:
+            from core.field_dictionary import FieldDictionary
+            f_dict = FieldDictionary.load()
+            return f_dict.resolve_category(text)
+        except Exception as e:
+            logger.debug("FieldDictionary fallback: %s", e)
+            aliases = load_aliases()
+
     clean_target = normalize_string(text)
     if not clean_target:
         return None
 
     # ATURAN PRIORITAS TINGGI NIP / NUPTK:
-    # Jika label mengandung 'nip' atau 'nuptk', HARUS dikategorikan ke NIP
-    # (bukan Nama Guru / Kepala walau mengandung kata 'Guru' atau 'Kepala').
     is_nip = bool(re.search(r"\b(nip|nuptk)\b", clean_target))
     if is_nip:
         if "kepala" in clean_target or "kamad" in clean_target:
@@ -62,7 +85,6 @@ def match_category(text: str, aliases: Dict[str, List[str]]) -> Optional[str]:
         return "NIP Guru"
 
     # Urutkan alias dari yang paling panjang agar lebih spesifik
-    # (misal "NIP Kepala Madrasah" cocok sebelum "NIP")
     all_candidates: List[Tuple[str, str]] = []
     for cat, alias_list in aliases.items():
         if cat in ("NIP Kepala", "NIP Guru"):
@@ -74,7 +96,18 @@ def match_category(text: str, aliases: Dict[str, List[str]]) -> Optional[str]:
 
     for cat, al in all_candidates:
         clean_al = normalize_string(al)
-        if clean_al and clean_al in clean_target:
+        if not clean_al:
+            continue
+
+        # Alias pendek wajib cocok persis dengan seluruh label
+        if clean_al in SHORT_EXACT_ALIASES:
+            if clean_target == clean_al:
+                return cat
+            continue
+
+        # Alias umum dicocokkan dengan batas kata regex (\b)
+        pattern = rf"\b{re.escape(clean_al)}\b"
+        if re.search(pattern, clean_target):
             return cat
 
     return None

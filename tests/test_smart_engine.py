@@ -114,15 +114,15 @@ class TestFuzzyAndValidation(unittest.TestCase):
     def test_type_safety_boundary(self):
         # NIP menimpa paragraf naratif panjang harus ditolak
         long_narrative = "Peserta didik dapat mempraktikkan gerak dasar lompat jauh di lapangan sekolah secara mandiri."
-        self.assertFalse(validate_type_safety("NIP Kepala", long_narrative, "197005272007011022"))
+        self.assertFalse(validate_type_safety("NIP Kepala", long_narrative, "198001012005011001"))
 
         # NIP menimpa titik-titik harus diterima
         dots_nip = "NIP. ........................................"
-        self.assertTrue(validate_type_safety("NIP Kepala", dots_nip, "197005272007011022"))
+        self.assertTrue(validate_type_safety("NIP Kepala", dots_nip, "198001012005011001"))
 
         # NIP menimpa nomor lama harus diterima
         old_nip = "NIP. 196805121994031002"
-        self.assertTrue(validate_type_safety("NIP Kepala", old_nip, "197005272007011022"))
+        self.assertTrue(validate_type_safety("NIP Kepala", old_nip, "198001012005011001"))
 
     def test_report_service(self):
         rep = ReportService()
@@ -147,12 +147,12 @@ class TestParagraphProcessor(unittest.TestCase):
         r2 = p.add_run("Negeri 1 Contoh")
         r2.italic = True
 
-        compiled = build_exact_pattern([("SD Negeri 1 Contoh", "MIN 2 Tanggamus")])
+        compiled = build_exact_pattern([("SD Negeri 1 Contoh", "MIN 1 Bandar Lampung")])
         counters = {}
         changes = replace_by_pattern(p, compiled, counters)
 
         self.assertEqual(changes, 1)
-        self.assertEqual(p.text, "MIN 2 Tanggamus")
+        self.assertEqual(p.text, "MIN 1 Bandar Lampung")
         # Run pertama tetap mempertahankan format bold
         self.assertTrue(p.runs[0].bold)
 
@@ -163,23 +163,23 @@ class TestPlaceholderDetector(unittest.TestCase):
         self.assertTrue(is_pure_placeholder("_________________"))
         self.assertTrue(is_pure_placeholder("( ................ )"))
         self.assertTrue(is_pure_placeholder("-"))
-        self.assertFalse(is_pure_placeholder("Sipulloh, M.Pd"))
-        self.assertFalse(is_pure_placeholder("197005272007011022"))
+        self.assertFalse(is_pure_placeholder("Ahmad Dahlan, M.Pd"))
+        self.assertFalse(is_pure_placeholder("198001012005011001"))
 
     def test_parentheses_handling(self):
-        inner, had = unwrap_parentheses("( Sipulloh, M.Pd )")
+        inner, had = unwrap_parentheses("( Ahmad Dahlan, M.Pd )")
         self.assertTrue(had)
-        self.assertEqual(inner, "Sipulloh, M.Pd")
+        self.assertEqual(inner, "Ahmad Dahlan, M.Pd")
 
-        inner2, had2 = unwrap_parentheses("Sipulloh, M.Pd")
+        inner2, had2 = unwrap_parentheses("Ahmad Dahlan, M.Pd")
         self.assertFalse(had2)
-        self.assertEqual(inner2, "Sipulloh, M.Pd")
+        self.assertEqual(inner2, "Ahmad Dahlan, M.Pd")
 
-        formatted = format_with_parentheses("Sipulloh, M.Pd", True)
-        self.assertEqual(formatted, "( Sipulloh, M.Pd )")
+        formatted = format_with_parentheses("Ahmad Dahlan, M.Pd", True)
+        self.assertEqual(formatted, "( Ahmad Dahlan, M.Pd )")
 
-        formatted2 = format_with_parentheses("( Sipulloh, M.Pd )", True)
-        self.assertEqual(formatted2, "( Sipulloh, M.Pd )")
+        formatted2 = format_with_parentheses("( Ahmad Dahlan, M.Pd )", True)
+        self.assertEqual(formatted2, "( Ahmad Dahlan, M.Pd )")
 
     def test_extract_label_and_placeholder(self):
         line = "Nama Kepala Madrasah : ........................"
@@ -203,6 +203,16 @@ class TestLabelRecognizer(unittest.TestCase):
         self.assertEqual(match_category("NIP Guru Mata Pelajaran", self.aliases), "NIP Guru")
         self.assertEqual(match_category("Satuan Pendidikan", self.aliases), "Nama Madrasah")
         self.assertEqual(match_category("Tahun Pelajaran", self.aliases), "Tahun Ajaran")
+        self.assertEqual(match_category("TP", self.aliases), "Tahun Ajaran")
+        self.assertEqual(match_category("Tanggal", self.aliases), "Titimangsa")
+        self.assertEqual(match_category("Smt", self.aliases), "Semester")
+
+    def test_negative_matching_boundaries(self):
+        """Memastikan kata-kata jebakan tidak salah diklasifikasikan sebagai kategori RPP."""
+        self.assertIsNone(match_category("Output", self.aliases))
+        self.assertIsNone(match_category("Tanggal Lahir Siswa", self.aliases))
+        self.assertIsNone(match_category("Rombel Kelas 6", self.aliases))
+        self.assertIsNone(match_category("Input Data", self.aliases))
 
 
 class TestReplacementEngineEndToEnd(unittest.TestCase):
@@ -222,13 +232,13 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         out_file = os.path.join(self.output_dir, "out_dotted.docx")
 
         rules = [
-            {"label": "Nama Madrasah", "old": "SD Negeri 1 Contoh", "new": "MIN 2 Tanggamus"},
+            {"label": "Nama Madrasah", "old": "SD Negeri 1 Contoh", "new": "MIN 1 Bandar Lampung"},
             {"label": "Tahun Ajaran", "old": "2025/2026", "new": "2026/2027"},
-            {"label": "Nama Kepala", "old": "", "new": "Sipulloh, M.Pd"},
-            {"label": "NIP Kepala", "old": "", "new": "197005272007011022"},
-            {"label": "Nama Guru", "old": "", "new": "Misri Kurniati, S.Pd.I"},
-            {"label": "NIP Guru", "old": "", "new": "197703232007102004"},
-            {"label": "Titimangsa", "old": "", "new": "Tanggamus, 13 Juli 2026"},
+            {"label": "Nama Kepala", "old": "", "new": "Ahmad Dahlan, M.Pd"},
+            {"label": "NIP Kepala", "old": "", "new": "198001012005011001"},
+            {"label": "Nama Guru", "old": "", "new": "Siti Aminah, S.Pd"},
+            {"label": "NIP Guru", "old": "", "new": "198502022010012002"},
+            {"label": "Titimangsa", "old": "", "new": "Bandar Lampung, 15 Juli 2026"},
         ]
 
         changes = self.engine.process_file(in_file, out_file, rules, mode="GABUNGAN")
@@ -245,13 +255,13 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
                     full_text.append(c.text)
         doc_str = "\n".join(full_text)
 
-        self.assertIn("MIN 2 Tanggamus", doc_str)
+        self.assertIn("MIN 1 Bandar Lampung", doc_str)
         self.assertIn("2026/2027", doc_str)
-        self.assertIn("( Sipulloh, M.Pd )", doc_str)
-        self.assertIn("197005272007011022", doc_str)
-        self.assertIn("( Misri Kurniati, S.Pd.I )", doc_str)
-        self.assertIn("197703232007102004", doc_str)
-        self.assertIn("Tanggamus, 13 Juli 2026", doc_str)
+        self.assertIn("( Ahmad Dahlan, M.Pd )", doc_str)
+        self.assertIn("198001012005011001", doc_str)
+        self.assertIn("( Siti Aminah, S.Pd )", doc_str)
+        self.assertIn("198502022010012002", doc_str)
+        self.assertIn("Bandar Lampung, 15 Juli 2026", doc_str)
 
     def test_sample_existing_names_smart_mode(self):
         in_file = os.path.join(self.samples_dir, "sample_rpp_existing_names.docx")
@@ -260,10 +270,10 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         rules = [
             {"label": "Nama Madrasah", "old": "", "new": "MIN 1 Bandar Lampung"},
             {"label": "Tahun Ajaran", "old": "", "new": "2025/2026"},
-            {"label": "Nama Kepala", "old": "", "new": "Sipulloh, M.Pd"},
-            {"label": "NIP Kepala", "old": "", "new": "197005272007011022"},
-            {"label": "Nama Guru", "old": "", "new": "Misri Kurniati, S.Pd.I"},
-            {"label": "NIP Guru", "old": "", "new": "197703232007102004"},
+            {"label": "Nama Kepala", "old": "", "new": "Ahmad Dahlan, M.Pd"},
+            {"label": "NIP Kepala", "old": "", "new": "198001012005011001"},
+            {"label": "Nama Guru", "old": "", "new": "Siti Aminah, S.Pd"},
+            {"label": "NIP Guru", "old": "", "new": "198502022010012002"},
             {"label": "Titimangsa", "old": "", "new": "Kotaagung, 10 Agustus 2026"},
         ]
 
@@ -279,21 +289,21 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         doc_str = "\n".join(full_text)
 
         self.assertIn("MIN 1 Bandar Lampung", doc_str)
-        self.assertIn("( Sipulloh, M.Pd )", doc_str)
-        self.assertIn("197005272007011022", doc_str)
-        self.assertIn("( Misri Kurniati, S.Pd.I )", doc_str)
-        self.assertIn("197703232007102004", doc_str)
+        self.assertIn("( Ahmad Dahlan, M.Pd )", doc_str)
+        self.assertIn("198001012005011001", doc_str)
+        self.assertIn("( Siti Aminah, S.Pd )", doc_str)
+        self.assertIn("198502022010012002", doc_str)
 
     def test_sample_tab_signature_smart_mode(self):
         in_file = os.path.join(self.samples_dir, "sample_rpp_tab_signature.docx")
         out_file = os.path.join(self.output_dir, "out_tab.docx")
 
         rules = [
-            {"label": "Nama Guru", "old": "", "new": "Misri Kurniati, S.Pd.I"},
-            {"label": "Nama Kepala", "old": "", "new": "Sipulloh, M.Pd"},
-            {"label": "NIP Kepala", "old": "", "new": "197005272007011022"},
-            {"label": "NIP Guru", "old": "", "new": "197703232007102004"},
-            {"label": "Titimangsa", "old": "", "new": "Tanggamus, 20 Juli 2026"},
+            {"label": "Nama Guru", "old": "", "new": "Siti Aminah, S.Pd"},
+            {"label": "Nama Kepala", "old": "", "new": "Ahmad Dahlan, M.Pd"},
+            {"label": "NIP Kepala", "old": "", "new": "198001012005011001"},
+            {"label": "NIP Guru", "old": "", "new": "198502022010012002"},
+            {"label": "Titimangsa", "old": "", "new": "Bandar Lampung, 20 Juli 2026"},
         ]
 
         changes = self.engine.process_file(in_file, out_file, rules, mode="GABUNGAN")
@@ -302,20 +312,20 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         out_doc = Document(out_file)
         full_text = "\n".join(p.text for p in out_doc.paragraphs)
 
-        self.assertIn("Misri Kurniati, S.Pd.I", full_text)
-        self.assertIn("Sipulloh, M.Pd", full_text)
-        self.assertIn("197005272007011022", full_text)
-        self.assertIn("197703232007102004", full_text)
-        self.assertIn("Tanggamus, 20 Juli 2026", full_text)
+        self.assertIn("Siti Aminah, S.Pd", full_text)
+        self.assertIn("Ahmad Dahlan, M.Pd", full_text)
+        self.assertIn("198001012005011001", full_text)
+        self.assertIn("198502022010012002", full_text)
+        self.assertIn("Bandar Lampung, 20 Juli 2026", full_text)
 
     def test_sample_underline_smart_mode(self):
         in_file = os.path.join(self.samples_dir, "sample_rpp_underline.docx")
         out_file = os.path.join(self.output_dir, "out_underline.docx")
 
         rules = [
-            {"label": "Nama Kepala", "old": "", "new": "Sipulloh, M.Pd"},
-            {"label": "NIP Kepala", "old": "", "new": "197005272007011022"},
-            {"label": "Nama Guru", "old": "", "new": "Misri Kurniati, S.Pd.I"},
+            {"label": "Nama Kepala", "old": "", "new": "Ahmad Dahlan, M.Pd"},
+            {"label": "NIP Kepala", "old": "", "new": "198001012005011001"},
+            {"label": "Nama Guru", "old": "", "new": "Siti Aminah, S.Pd"},
         ]
 
         changes = self.engine.process_file(in_file, out_file, rules, mode="GABUNGAN")
@@ -324,9 +334,9 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         out_doc = Document(out_file)
         full_text = "\n".join(p.text for p in out_doc.paragraphs)
 
-        self.assertIn("Sipulloh, M.Pd", full_text)
-        self.assertIn("197005272007011022", full_text)
-        self.assertIn("Misri Kurniati, S.Pd.I", full_text)
+        self.assertIn("Ahmad Dahlan, M.Pd", full_text)
+        self.assertIn("198001012005011001", full_text)
+        self.assertIn("Siti Aminah, S.Pd", full_text)
 
     def test_signature_only_mode_preserves_text_and_inserts_images(self):
         """Uji mode SIGNATURE_ONLY: teks dokumen 100% utuh dan gambar tanda tangan terpasang."""
@@ -343,18 +353,18 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         table.rows[1].cells[0].paragraphs[0].text = "Kepala Madrasah"
         table.rows[2].cells[0].paragraphs[0].text = ""  # Ruang kosong tanda tangan
         p_k = table.rows[3].cells[0].paragraphs[0]
-        p_k.text = "Sipulloh, M.Pd"
+        p_k.text = "Ahmad Dahlan, M.Pd"
         p_k.runs[0].bold = True
-        table.rows[4].cells[0].paragraphs[0].text = "NIP. 197005272007011022"
+        table.rows[4].cells[0].paragraphs[0].text = "NIP. 198001012005011001"
 
         # Kolom 1: Guru
-        table.rows[0].cells[1].paragraphs[0].text = "Tanggamus, 13 Juli 2026"
+        table.rows[0].cells[1].paragraphs[0].text = "Bandar Lampung, 15 Juli 2026"
         table.rows[1].cells[1].paragraphs[0].text = "Guru PJOK"
         table.rows[2].cells[1].paragraphs[0].text = ""  # Ruang kosong tanda tangan
         p_g = table.rows[3].cells[1].paragraphs[0]
-        p_g.text = "Misri Kurniati, S.Pd.I"
+        p_g.text = "Siti Aminah, S.Pd"
         p_g.runs[0].bold = True
-        table.rows[4].cells[1].paragraphs[0].text = "NIP. 197703232007102004"
+        table.rows[4].cells[1].paragraphs[0].text = "NIP. 198502022010012002"
 
         in_file = os.path.join(self.output_dir, "doc_already_edited.docx")
         out_file = os.path.join(self.output_dir, "doc_with_signatures_only.docx")
@@ -413,13 +423,13 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
 
         # Teks tetap sama persis
         self.assertEqual(out_table.rows[1].cells[0].text.strip(), "Kepala Madrasah")
-        self.assertEqual(out_table.rows[3].cells[0].text.strip(), "Sipulloh, M.Pd")
-        self.assertEqual(out_table.rows[4].cells[0].text.strip(), "NIP. 197005272007011022")
+        self.assertEqual(out_table.rows[3].cells[0].text.strip(), "Ahmad Dahlan, M.Pd")
+        self.assertEqual(out_table.rows[4].cells[0].text.strip(), "NIP. 198001012005011001")
 
-        self.assertEqual(out_table.rows[0].cells[1].text.strip(), "Tanggamus, 13 Juli 2026")
+        self.assertEqual(out_table.rows[0].cells[1].text.strip(), "Bandar Lampung, 15 Juli 2026")
         self.assertEqual(out_table.rows[1].cells[1].text.strip(), "Guru PJOK")
-        self.assertEqual(out_table.rows[3].cells[1].text.strip(), "Misri Kurniati, S.Pd.I")
-        self.assertEqual(out_table.rows[4].cells[1].text.strip(), "NIP. 197703232007102004")
+        self.assertEqual(out_table.rows[3].cells[1].text.strip(), "Siti Aminah, S.Pd")
+        self.assertEqual(out_table.rows[4].cells[1].text.strip(), "NIP. 198502022010012002")
 
         # Pastikan elemen drawing gambar ada di dalam tabel
         xml_table = out_table._tbl.xml
@@ -427,11 +437,14 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
 
     def test_replacement_view_ui_signature_only_toggle(self):
         """Uji UI ReplacementView: saat mode SIGNATURE_ONLY dipilih, kolom dinonaktifkan (disabled)."""
-        import tkinter as tk
-        from gui.replacement_view import ReplacementView
+        try:
+            import tkinter as tk
+            from gui.replacement_view import ReplacementView
+            root = tk.Tk()
+            root.withdraw()
+        except Exception:
+            self.skipTest("Tkinter display tidak tersedia di lingkungan pengujian.")
 
-        root = tk.Tk()
-        root.withdraw()
         try:
             view = ReplacementView(root)
             # Default awal GABUNGAN -> normal
@@ -498,7 +511,7 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         doc.save(test_in)
 
         rules = [
-            {"label": "Nama Sekolah", "old": "SD Negeri 1 Contoh", "new": "MIN 2 Tanggamus"},
+            {"label": "Nama Sekolah", "old": "SD Negeri 1 Contoh", "new": "MIN 1 Bandar Lampung"},
             {"label": "Tahun Ajaran", "old": "2025/2026", "new": "2026/2027"},
         ]
 
@@ -513,16 +526,16 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
 
         out_doc = Document(test_out)
         out_sec = out_doc.sections[0]
-        self.assertIn("MIN 2 Tanggamus", out_sec.header.paragraphs[0].text)
-        self.assertIn("MIN 2 Tanggamus", out_sec.footer.paragraphs[0].text)
+        self.assertIn("MIN 1 Bandar Lampung", out_sec.header.paragraphs[0].text)
+        self.assertIn("MIN 1 Bandar Lampung", out_sec.footer.paragraphs[0].text)
         self.assertIn("2026/2027", out_sec.footer.paragraphs[0].text)
 
     def test_tab_line_contract_respects_approval(self):
         """Uji K2: Blok tanda tangan tabulasi hanya menerapkan item TAB_LINE yang disetujui."""
         doc = Document()
-        p1 = doc.add_paragraph("Mengetahui,\t\t\t\tTanggamus, 10 Juli 2026")
+        p1 = doc.add_paragraph("Mengetahui,\t\t\t\tBandar Lampung, 10 Juli 2026")
         p2 = doc.add_paragraph("Kepala Sekolah\t\t\t\tGuru Kelas")
-        p3 = doc.add_paragraph("Sipulloh, M.Pd\t\t\t\tMisri Kurniati, S.Pd.I")
+        p3 = doc.add_paragraph("Ahmad Dahlan, M.Pd\t\t\t\tSiti Aminah, S.Pd")
 
         test_in = os.path.join(self.output_dir, "doc_tab_approval.docx")
         test_out = os.path.join(self.output_dir, "doc_tab_approval_out.docx")
@@ -553,7 +566,7 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         # Kepala berubah
         self.assertIn("H. Ahmad, M.Pd", name_line)
         # Guru TIDAK berubah karena ditolak user
-        self.assertIn("Misri Kurniati, S.Pd.I", name_line)
+        self.assertIn("Siti Aminah, S.Pd", name_line)
         self.assertNotIn("Siti Rahma, S.Pd", name_line)
 
     def test_double_counting_elimination(self):
@@ -584,7 +597,7 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
             rel_path="doc_count.docx",
             category="Nama Kepala",
             old_text="Nama Asli Lama",
-            new_text="Sipulloh, M.Pd",
+            new_text="Ahmad Dahlan, M.Pd",
             confidence=ConfidenceLevel.HIGH,
             location_info="Tabel",
             is_approved=True,
@@ -649,7 +662,7 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         table = doc.add_table(rows=3, cols=2)
         table.rows[0].cells[0].paragraphs[0].text = "Mengetahui,"
         table.rows[1].cells[0].paragraphs[0].text = "Kepala Sekolah"
-        table.rows[2].cells[0].paragraphs[0].text = "Sipulloh, M.Pd"
+        table.rows[2].cells[0].paragraphs[0].text = "Ahmad Dahlan, M.Pd"
 
         test_in = os.path.join(self.output_dir, "doc_land_in.docx")
         test_out = os.path.join(self.output_dir, "doc_land_out.docx")
@@ -671,8 +684,8 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
             doc_path=test_in,
             rel_path="doc_land_in.docx",
             category="Nama Kepala",
-            old_text="Sipulloh, M.Pd",
-            new_text="Sipulloh, M.Pd",
+            old_text="Ahmad Dahlan, M.Pd",
+            new_text="Ahmad Dahlan, M.Pd",
             confidence=ConfidenceLevel.HIGH,
             location_info="Tabel",
             is_approved=True,
@@ -701,8 +714,8 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
         doc.save(test_in)
 
         rules = [
-            {"label": "Nama Madrasah", "old": "", "new": "MIN 2 Tanggamus"},
-            {"label": "Nama Guru Mata Pelajaran", "old": "", "new": "Dwi Putri Ayu Andari, S.Pd"},
+            {"label": "Nama Madrasah", "old": "", "new": "MIN 1 Bandar Lampung"},
+            {"label": "Nama Guru Mata Pelajaran", "old": "", "new": "Siti Aminah, S.Pd"},
         ]
 
         plan = self.engine.plan_document_changes(test_in, "test_1col_in.docx", rules)
@@ -714,8 +727,8 @@ class TestReplacementEngineEndToEnd(unittest.TestCase):
 
         out_doc = Document(test_out)
         paras = out_doc.tables[0].rows[0].cells[0].paragraphs
-        self.assertIn("MIN 2 Tanggamus", paras[0].text)
-        self.assertIn("Dwi Putri Ayu Andari, S.Pd", paras[1].text)
+        self.assertIn("MIN 1 Bandar Lampung", paras[0].text)
+        self.assertIn("Siti Aminah, S.Pd", paras[1].text)
 
 
 if __name__ == "__main__":

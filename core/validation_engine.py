@@ -61,6 +61,12 @@ def validate_type_safety(category: str, old_text: str, new_text: str) -> bool:
         if len(letters_only) > 60:
             return False
 
+    # 4. Validasi Kategori Tahun (Tahun Ajaran / Tahun Penyusunan)
+    if "Tahun" in category:
+        letters_only = re.sub(r"[^A-Za-z]", "", clean_old)
+        if len(letters_only) > 40 and not re.search(r"20(?:\d{2}|\.\.)", clean_old) and not re.search(r"[\._\-]", clean_old):
+            return False
+
     return True
 
 

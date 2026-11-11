@@ -15,6 +15,7 @@ from typing import List, Tuple, Dict, Any, Set, Optional
 
 from core.doc_compat_service import is_supported_word_file
 from core.replacement_engine import ReplacementEngine
+from core.field_dictionary import FieldDictionary
 from core.validation_engine import ReplacementPlanItem, ConfidenceLevel
 from gui.replacement_view import ReplacementView
 from gui.preview_view import IntegratedPreviewDialog
@@ -66,7 +67,8 @@ class SmartRPPReplacerApp:
         self.root.geometry("1020x820")
         self.root.minsize(880, 680)
 
-        self.engine = ReplacementEngine()
+        self.field_dictionary = FieldDictionary.load()
+        self.engine = ReplacementEngine(field_dictionary=self.field_dictionary)
         self.report_service = ReportService()
         self.msg_queue = queue.Queue()
 
@@ -123,7 +125,12 @@ class SmartRPPReplacerApp:
         ttk.Checkbutton(opts_frame, text="Langsung ekspor ke PDF setelah selesai", variable=self.auto_pdf_var).pack(side="left")
 
         # 2. Panel Aturan Penggantian
-        self.replacement_view = ReplacementView(parent, get_input_dir=lambda: self.input_dir_var.get())
+        self.replacement_view = ReplacementView(
+            parent,
+            get_input_dir=lambda: self.input_dir_var.get(),
+            field_dictionary=self.field_dictionary,
+            on_dictionary_changed=self._on_dictionary_changed
+        )
         self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
         # 3. Panel Bawah (Eksekusi & Log)
@@ -266,6 +273,12 @@ class SmartRPPReplacerApp:
                 if os.path.isfile(full) and is_supported_word_file(n):
                     result.append((full, n))
         return result
+
+    def _on_dictionary_changed(self):
+        """Dipanggil saat pengguna mengubah atau memperbarui sinonim di Kamus Field."""
+        if hasattr(self, "engine"):
+            self.engine.reload_dictionary()
+        self._log("Kamus field berhasil diperbarui.")
 
     def _start_processing(self):
         in_dir = self.input_dir_var.get().strip()

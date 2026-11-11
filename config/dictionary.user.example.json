@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "user_synonyms": {
+    "nama_lembaga": [
+      "Madrasah Ibtidaiyah Negeri",
+      "Nama Unit Kerja"
+    ],
+    "nama_guru": [
+      "Pendidik Mapel",
+      "Guru Pengampu"
+    ],
+    "jabatan_kepala": [
+      "Kepala Sekolah Dasar"
+    ]
+  }
+}

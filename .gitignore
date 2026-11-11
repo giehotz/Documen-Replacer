@@ -42,3 +42,6 @@ desktop.ini
 config/*.json
 !config/aliases.json
 !config/signature_settings.example.json
+!config/preset_example.json
+!config/dictionary.default.json
+!config/dictionary.user.example.json

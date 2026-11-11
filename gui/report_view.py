@@ -4,8 +4,9 @@ Menampilkan ringkasan eksekutif dokumen dan statistik penggantian per kategori.
 """
 import os
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from services.report_service import ReportService
+from utils.platform import open_path
 
 
 class ReportDialog(tk.Toplevel):
@@ -93,7 +94,7 @@ class ReportDialog(tk.Toplevel):
 
     def _open_folder(self):
         try:
-            os.startfile(self.output_dir)
+            open_path(self.output_dir)
         except Exception as e:
             messagebox.showwarning("Gagal Membuka Folder", f"Tidak dapat membuka folder:\n{e}")
 
@@ -101,7 +102,7 @@ class ReportDialog(tk.Toplevel):
         report_path = os.path.join(self.output_dir, "LAPORAN_PENGGANTIAN_RPP.txt")
         if os.path.isfile(report_path):
             try:
-                os.startfile(report_path)
+                open_path(report_path)
             except Exception as e:
                 messagebox.showwarning("Gagal Membuka Laporan", f"Tidak dapat membuka file laporan:\n{e}")
         else:

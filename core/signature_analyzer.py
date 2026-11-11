@@ -8,6 +8,7 @@ Menganalisis dan memproses blok pengesahan/tanda tangan RPP:
 - Pemeliharaan tanda kurung nama terang
 """
 from typing import List, Dict, Optional, Tuple, Any
+import os
 import re
 import logging
 from docx.text.paragraph import Paragraph

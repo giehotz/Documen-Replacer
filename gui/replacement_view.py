@@ -1,40 +1,52 @@
 """
 Komponen GUI Tampilan Aturan Penggantian Teks.
-Mendukung kolom Teks Lama opsional dan pilihan Mode Pencarian.
+Mendukung pemilihan field berbasis Kamus (FieldDictionary), feedback pengenalan label,
+validasi lunak format data, kolom Teks Lama opsional, dan deteksi label tak dikenal.
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import json
 import os
 import logging
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional, Callable
+
+from core.field_dictionary import FieldDictionary
 
 logger = logging.getLogger(__name__)
 
 
 class ReplacementView(ttk.LabelFrame):
-    def __init__(self, parent, get_input_dir=None, **kwargs):
+    def __init__(
+        self,
+        parent,
+        get_input_dir=None,
+        field_dictionary: Optional[FieldDictionary] = None,
+        on_dictionary_changed: Optional[Callable[[], None]] = None,
+        **kwargs
+    ):
         super().__init__(
             parent,
             text=" 2. Aturan Penggantian Data (Kolom 'Teks Lama' opsional / otomatis dicari jika kosong) ",
             padding=10,
             **kwargs
         )
-        self.rows_data: List[Tuple[ttk.Entry, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]] = []
+        self.rows_data: List[Tuple[Any, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]] = []
         self.get_input_dir = get_input_dir
+        self.on_dictionary_changed = on_dictionary_changed
+        self.field_dictionary = field_dictionary or FieldDictionary.load()
 
         self.search_mode_var = tk.StringVar(value="GABUNGAN")
 
         self.default_fields = [
-            ("Nama Sekolah/Madrasah", "SD Negeri 1 Contoh", "MIN 2 Tanggamus"),
+            ("Nama Sekolah/Madrasah", "SD Negeri 1 Contoh", "MIN 1 Contoh"),
             ("Istilah Jabatan Kepala", "Kepala Sekolah", "Kepala Madrasah"),
             ("Tahun Ajaran", "2025/2026", "2026/2027"),
             ("Semester", "Ganjil", "Genap"),
-            ("Nama Kepala Madrasah", "", "Sipulloh, M.Pd"),
-            ("NIP Kepala Madrasah", "", "197005272007011022"),
-            ("Nama Guru Penyusun", "", "Misri Kurniati, S.Pd.I"),
-            ("NIP / NUPTK Guru", "", "197703232007102004"),
-            ("Titimangsa (Tempat, Tgl)", "", "Tanggamus, 13 Juli 2026"),
+            ("Nama Kepala Madrasah", "", "Ahmad Dahlan, M.Pd"),
+            ("NIP Kepala Madrasah", "", "198001012005011001"),
+            ("Nama Guru Penyusun", "", "Siti Aminah, S.Pd"),
+            ("NIP / NUPTK Guru", "", "198502022010012002"),
+            ("Titimangsa (Tempat, Tgl)", "", "Jakarta, 15 Juli 2026"),
         ]
 
         self._build_ui()
@@ -72,15 +84,18 @@ class ReplacementView(ttk.LabelFrame):
             command=self._on_mode_changed
         ).pack(side="left", padx=10, pady=1)
 
-        # 2. Bar Tombol Aksi Preset & Tambah Baris
+        # 2. Bar Tombol Aksi Preset, Tambah Baris, Kamus & Prediksi
         bar = ttk.Frame(self)
         bar.pack(fill="x", pady=(0, 6))
         self.btn_add_row = ttk.Button(bar, text="+ Tambah Baris Kustom", command=lambda: self.add_row("Kustom", "", ""))
         self.btn_add_row.pack(side="left")
         self.btn_sig_designer = ttk.Button(bar, text="✍ Atur Tanda Tangan Digital...", command=self._open_signature_designer)
-        self.btn_sig_designer.pack(side="left", padx=(10, 0))
+        self.btn_sig_designer.pack(side="left", padx=(8, 0))
         self.btn_predict = ttk.Button(bar, text="🔍 Prediksi dari Dokumen...", command=self._open_predict_menu)
-        self.btn_predict.pack(side="left", padx=(10, 0))
+        self.btn_predict.pack(side="left", padx=(8, 0))
+        self.btn_dict = ttk.Button(bar, text="📖 Kelola Kamus...", command=self._open_dictionary_dialog)
+        self.btn_dict.pack(side="left", padx=(8, 0))
+
         self.btn_save_preset = ttk.Button(bar, text="Simpan Profil (.json)", command=self.save_preset)
         self.btn_save_preset.pack(side="right", padx=(5, 0))
         self.btn_load_preset = ttk.Button(bar, text="Muat Profil (.json)", command=self.load_preset)
@@ -114,7 +129,7 @@ class ReplacementView(ttk.LabelFrame):
 
     @staticmethod
     def _configure_cols(frame):
-        frame.columnconfigure(0, minsize=170)
+        frame.columnconfigure(0, minsize=180)
         frame.columnconfigure(1, weight=1, uniform="c")
         frame.columnconfigure(2, weight=1, uniform="c")
         frame.columnconfigure(3, minsize=36)
@@ -131,17 +146,31 @@ class ReplacementView(ttk.LabelFrame):
         frame.pack(fill="x", pady=2)
         self._configure_cols(frame)
 
-        lbl = ttk.Entry(frame)
-        lbl.insert(0, label_text)
-        lbl.grid(row=0, column=0, padx=3, sticky="ew")
+        # Kolom 0: Label Field (Combobox dengan Badge Status)
+        col0_frame = ttk.Frame(frame)
+        col0_frame.grid(row=0, column=0, padx=3, sticky="ew")
 
+        field_vals = [f.display_label for f in self.field_dictionary.fields()]
+        lbl = ttk.Combobox(col0_frame, values=field_vals)
+        lbl.insert(0, label_text)
+        lbl.pack(side="left", fill="x", expand=True)
+
+        lbl_badge = ttk.Label(col0_frame, text="", width=2, font=("Segoe UI", 9, "bold"))
+        lbl_badge.pack(side="right", padx=(2, 0))
+
+        # Kolom 1: Teks Lama
         old = ttk.Entry(frame)
         old.insert(0, old_text)
         old.grid(row=0, column=1, padx=3, sticky="ew")
 
+        # Kolom 2: Teks Baru
         new = ttk.Entry(frame)
         new.insert(0, new_text)
         new.grid(row=0, column=2, padx=3, sticky="ew")
+
+        # Baris 1 Kolom 2: Peringatan Validasi Lunak (jika format nilai kurang sesuai)
+        lbl_warn = ttk.Label(frame, text="", font=("Segoe UI", 8), foreground="#b06000")
+        lbl_warn.grid(row=1, column=2, sticky="w", padx=3)
 
         btn_del = ttk.Button(
             frame,
@@ -151,13 +180,57 @@ class ReplacementView(ttk.LabelFrame):
         )
         btn_del.grid(row=0, column=3, padx=3)
 
+        frame.lbl_badge = lbl_badge
+        frame.lbl_warn = lbl_warn
+
+        row_item = (lbl, old, new, frame, btn_del)
+
+        # Event binding untuk validasi interaktif dan status badge
+        lbl.bind("<<ComboboxSelected>>", lambda e: self._update_row_feedback(row_item))
+        lbl.bind("<KeyRelease>", lambda e: self.after(200, lambda: self._update_row_feedback(row_item)))
+        new.bind("<KeyRelease>", lambda e: self.after(250, lambda: self._update_row_feedback(row_item)))
+
         if self.search_mode_var.get() == "SIGNATURE_ONLY":
             lbl.configure(state="disabled")
             old.configure(state="disabled")
             new.configure(state="disabled")
             btn_del.configure(state="disabled")
 
-        self.rows_data.append((lbl, old, new, frame, btn_del))
+        self.rows_data.append(row_item)
+        self._update_row_feedback(row_item)
+
+    def _update_row_feedback(self, row_item: Tuple[Any, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]):
+        """Memperbarui badge status pengenalan label dan pesan validasi lunak pada baris."""
+        lbl_widget, old_widget, new_widget, frame, _ = row_item
+        lbl_val = lbl_widget.get().strip()
+        new_val = new_widget.get().strip()
+
+        lbl_badge = getattr(frame, "lbl_badge", None)
+        lbl_warn = getattr(frame, "lbl_warn", None)
+
+        if not lbl_val:
+            if lbl_badge:
+                lbl_badge.configure(text="", foreground="black")
+            if lbl_warn:
+                lbl_warn.configure(text="")
+            return
+
+        res = self.field_dictionary.resolve(lbl_val)
+        if res.field:
+            if lbl_badge:
+                lbl_badge.configure(text="✔", foreground="#0b8043")
+            warning = self.field_dictionary.validate_value(res.field.id, new_val) if new_val else None
+            if warning:
+                if lbl_warn:
+                    lbl_warn.configure(text=f"⚠ {warning}", foreground="#b06000")
+            else:
+                if lbl_warn:
+                    lbl_warn.configure(text="")
+        else:
+            if lbl_badge:
+                lbl_badge.configure(text="?", foreground="#c5221f")
+            if lbl_warn:
+                lbl_warn.configure(text="")
 
     def remove_row(self, target_frame):
         for item in self.rows_data:
@@ -170,9 +243,11 @@ class ReplacementView(ttk.LabelFrame):
         """Mengubah status input rules (normal / disabled)."""
         self.btn_add_row.configure(state=state)
         self.btn_predict.configure(state=state)
+        self.btn_dict.configure(state=state)
         self.btn_save_preset.configure(state=state)
         self.btn_load_preset.configure(state=state)
-        for lbl, old, new, frame, btn_del in self.rows_data:
+        for item in self.rows_data:
+            lbl, old, new, frame, btn_del = item
             try:
                 lbl.configure(state=state)
                 old.configure(state=state)
@@ -210,6 +285,39 @@ class ReplacementView(ttk.LabelFrame):
         from gui.signature_designer_dialog import SignatureDesignerDialog
         SignatureDesignerDialog(self.winfo_toplevel())
 
+    def _open_dictionary_dialog(self):
+        from gui.dictionary_dialog import DictionaryManagerDialog
+        DictionaryManagerDialog(
+            self.winfo_toplevel(),
+            dictionary=self.field_dictionary,
+            on_saved_callback=self._on_dict_updated
+        )
+
+    def _open_unknown_labels_dialog(self, unknown_dict: Dict[str, int]):
+        from gui.dictionary_dialog import UnknownLabelsDialog
+        UnknownLabelsDialog(
+            self.winfo_toplevel(),
+            unknown_labels=unknown_dict,
+            dictionary=self.field_dictionary,
+            on_synonym_added_callback=self._on_dict_updated
+        )
+
+    def _on_dict_updated(self):
+        """Dipanggil saat kamus pengguna diperbarui via dialog."""
+        if self.on_dictionary_changed:
+            try:
+                self.on_dictionary_changed()
+            except Exception as e:
+                logger.warning("Error pada on_dictionary_changed callback: %s", e)
+
+        # Refresh nilai pilihan combobox dan status badge di seluruh baris
+        field_vals = [f.display_label for f in self.field_dictionary.fields()]
+        for item in self.rows_data:
+            lbl_widget = item[0]
+            if isinstance(lbl_widget, ttk.Combobox):
+                lbl_widget.configure(values=field_vals)
+            self._update_row_feedback(item)
+
     @staticmethod
     def _get_config_dir() -> str:
         """Mengembalikan path direktori config proyek secara dinamis dan portabel antar perangkat/lokasi."""
@@ -232,11 +340,12 @@ class ReplacementView(ttk.LabelFrame):
         )
         if not path:
             return
-        data = self.get_rules()
+
+        rules = self.get_rules()
         try:
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            messagebox.showinfo("Berhasil", f"Profil berhasil disimpan:\n{path}")
+                json.dump(rules, f, indent=2, ensure_ascii=False)
+            messagebox.showinfo("Berhasil", f"Profil aturan berhasil disimpan ke:\n{path}")
         except Exception as e:
             messagebox.showerror("Gagal", f"Gagal menyimpan profil:\n{e}")
 
@@ -249,24 +358,14 @@ class ReplacementView(ttk.LabelFrame):
         )
         if not path:
             return
+
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            self.apply_rules_to_table(data)
+            messagebox.showinfo("Berhasil", f"Profil aturan dimuat dari:\n{path}")
         except Exception as e:
-            messagebox.showerror("Gagal", f"File profil tidak valid:\n{e}")
-            return
-
-        # Hapus baris lama
-        for item in list(self.rows_data):
-            item[3].destroy()
-        self.rows_data.clear()
-
-        for item in data:
-            self.add_row(
-                item.get("label", ""),
-                item.get("old", ""),
-                item.get("new", "")
-            )
+            messagebox.showerror("Gagal", f"Gagal memuat profil:\n{e}")
 
     def apply_rules_to_table(self, rules: List[Dict[str, str]]):
         """Menerapkan daftar aturan ke dalam tabel input GUI."""
@@ -314,7 +413,7 @@ class ReplacementView(ttk.LabelFrame):
         if not path:
             return
 
-        from core.document_predictor import predict_rules_from_file
+        from core.document_predictor import predict_rules_from_file, collect_unknown_labels
         try:
             current_rules = self.get_rules()
             merged_rules = predict_rules_from_file(path, current_rules=current_rules)
@@ -328,6 +427,11 @@ class ReplacementView(ttk.LabelFrame):
                 f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan.\n\n"
                 f"Silakan periksa isian atau klik 'Simpan Profil (.json)' untuk menyimpannya."
             )
+
+            # Cek deteksi unknown labels
+            unknowns = collect_unknown_labels(path, dictionary=self.field_dictionary)
+            if unknowns:
+                self._open_unknown_labels_dialog(unknowns)
         except Exception as e:
             messagebox.showerror("Gagal Menganalisis Dokumen", f"Terjadi kesalahan saat membaca dokumen:\n{e}")
 
@@ -341,11 +445,11 @@ class ReplacementView(ttk.LabelFrame):
                 target_dir = ""
 
         if not target_dir or not os.path.isdir(target_dir):
-            target_dir = filedialog.askdirectory(title="Pilih Folder Dokumen (.docx) yang Ingin Dipindai")
+            target_dir = filedialog.askdirectory(title="Pilih Folder Dokumen (.docx, .doc) yang Ingin Dipindai")
             if not target_dir:
                 return
 
-        from core.document_predictor import predict_rules_from_folder
+        from core.document_predictor import predict_rules_from_folder, collect_unknown_labels
         try:
             current_rules = self.get_rules()
             merged_rules = predict_rules_from_folder(target_dir, current_rules=current_rules)
@@ -358,5 +462,10 @@ class ReplacementView(ttk.LabelFrame):
                 f"• Kolom 'Teks Lama' siap mencakup seluruh variasi dokumen.\n"
                 f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan."
             )
+
+            # Cek deteksi unknown labels di seluruh folder
+            unknowns = collect_unknown_labels(target_dir, dictionary=self.field_dictionary)
+            if unknowns:
+                self._open_unknown_labels_dialog(unknowns)
         except Exception as e:
             messagebox.showerror("Gagal Memindai Folder", f"Terjadi kesalahan saat memindai folder:\n{e}")

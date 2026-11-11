@@ -18,10 +18,18 @@ from core.document_predictor import (
 
 class TestDocumentPredictor(unittest.TestCase):
     def setUp(self):
-        self.doc_bab1 = os.path.abspath("docs/example/BAB 1.docx")
-        self.doc_modul = os.path.abspath(
-            "docs/06_Kelas 6/Tahun Pelajaran 2025-2026/02_Modul Ajar/Modul_Ajar_KBC_PJOK_Kelas6_Unit01_2025-2026.docx"
-        )
+        samples_dir = os.path.join(os.path.dirname(__file__), "samples")
+        os.makedirs(samples_dir, exist_ok=True)
+        self.doc_bab1 = os.path.join(samples_dir, "sample_bab1.docx")
+        self.doc_modul = os.path.join(samples_dir, "sample_modul_ajar.docx")
+
+        if not os.path.exists(self.doc_bab1):
+            from tests.generate_samples import create_sample_bab1
+            create_sample_bab1(self.doc_bab1)
+        if not os.path.exists(self.doc_modul):
+            from tests.generate_samples import create_sample_modul_ajar
+            create_sample_modul_ajar(self.doc_modul)
+
         self.test_dir = tempfile.mkdtemp()
 
     def tearDown(self):
@@ -50,8 +58,10 @@ class TestDocumentPredictor(unittest.TestCase):
         self.assertIn("Istilah Jabatan Kepala", candidates)
         self.assertIn("Kepala Madrasah", candidates["Istilah Jabatan Kepala"])
 
-        self.assertIn("Tahun Pelajaran", candidates)
-        self.assertIn("2025/2026", candidates["Tahun Pelajaran"])
+        has_tp = "Tahun Pelajaran" in candidates or "Tahun Ajaran" in candidates
+        self.assertTrue(has_tp)
+        tp_values = candidates.get("Tahun Pelajaran", set()) | candidates.get("Tahun Ajaran", set())
+        self.assertIn("2025/2026", tp_values)
 
         self.assertIn("Nama Madrasah", candidates)
         self.assertTrue(any("MI" in m for m in candidates["Nama Madrasah"]))
@@ -83,9 +93,9 @@ class TestDocumentPredictor(unittest.TestCase):
         ]
 
         predicted = [
-            {"label": "Nama Madrasah", "old": "MI ......................................................", "new": "MIN 2 Tanggamus"},
+            {"label": "Nama Madrasah", "old": "MI ......................................................", "new": "MIN 1 Bandar Lampung"},
             {"label": "Tahun Pelajaran", "old": "2025/2026", "new": "2026/2027"},
-            {"label": "Nama Guru Mata Pelajaran", "old": "", "new": "Dwi Putri Ayu Andari, S.Pd"},
+            {"label": "Nama Guru Mata Pelajaran", "old": "", "new": "Siti Aminah, S.Pd"},
         ]
 
         merged = smart_merge_rules(user_rules, predicted)
