@@ -22,6 +22,7 @@ class ReplacementView(ttk.LabelFrame):
         get_input_dir=None,
         field_dictionary: Optional[FieldDictionary] = None,
         on_dictionary_changed: Optional[Callable[[], None]] = None,
+        on_signature_changed: Optional[Callable[[Dict[str, Any]], None]] = None,
         **kwargs
     ):
         super().__init__(
@@ -33,6 +34,7 @@ class ReplacementView(ttk.LabelFrame):
         self.rows_data: List[Tuple[Any, ttk.Entry, ttk.Entry, ttk.Frame, ttk.Button]] = []
         self.get_input_dir = get_input_dir
         self.on_dictionary_changed = on_dictionary_changed
+        self.on_signature_changed = on_signature_changed
         self.field_dictionary = field_dictionary or FieldDictionary.load()
 
         self.search_mode_var = tk.StringVar(value="GABUNGAN")
@@ -283,7 +285,14 @@ class ReplacementView(ttk.LabelFrame):
 
     def _open_signature_designer(self):
         from gui.signature_designer_dialog import SignatureDesignerDialog
-        SignatureDesignerDialog(self.winfo_toplevel())
+        SignatureDesignerDialog(self.winfo_toplevel(), on_save_callback=self._on_sig_saved)
+
+    def _on_sig_saved(self, new_settings):
+        if self.on_signature_changed:
+            try:
+                self.on_signature_changed(new_settings)
+            except Exception as e:
+                logger.warning("Error pada on_signature_changed callback: %s", e)
 
     def _open_dictionary_dialog(self):
         from gui.dictionary_dialog import DictionaryManagerDialog

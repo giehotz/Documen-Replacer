@@ -162,12 +162,17 @@ def process_signature_zone(
 
     # 2. Cari Role Anchor
     anchor_idx = -1
-    for i in range(num_p):
-        t = get_paragraph_text(paragraphs[i]).lower()
-        if role == "KEPALA" and any(k in t for k in KEPALA_ROLE_KEYWORDS):
+    for i in range(min(4, num_p)):
+        t = get_paragraph_text(paragraphs[i]).strip()
+        if t.startswith("(") or is_pure_placeholder(t) or is_academic_name(t):
+            continue
+        t_low = t.lower()
+        if role == "KEPALA" and any(k in t_low for k in KEPALA_ROLE_KEYWORDS):
             anchor_idx = i
-        elif role == "GURU" and any(k in t for k in GURU_ROLE_KEYWORDS):
+            break
+        elif role == "GURU" and any(k in t_low for k in GURU_ROLE_KEYWORDS):
             anchor_idx = i
+            break
 
     start_scan = anchor_idx + 1 if anchor_idx != -1 else 0
 
@@ -208,23 +213,23 @@ def process_signature_zone(
                 changes += 1
             break
 
-    # 4.5 Sisipkan Gambar Tanda Tangan Digital jika dikonfigurasi
+    # 4.5 Sisipkan Gambar Tanda Tangan Digital & Stempel jika dikonfigurasi
     if signature_settings and name_idx != -1:
-        from core.signature_image_service import resolve_signature_settings_for_orientation
+        from core.signature_image_service import resolve_signature_settings_for_orientation, insert_signature_picture
         resolved_sig = resolve_signature_settings_for_orientation(signature_settings, is_landscape=is_landscape)
         is_kepala = (role == "KEPALA")
         enabled = resolved_sig.get("enabled_kepala" if is_kepala else "enabled_guru", False)
         img_path = resolved_sig.get("kepala_image_path" if is_kepala else "guru_image_path", "")
-        if enabled and img_path and os.path.isfile(img_path):
+
+        enabled_stempel = is_kepala and resolved_sig.get("enabled_stempel", False)
+        stempel_path = resolved_sig.get("stempel_image_path", "") if is_kepala else ""
+
+        if (enabled and img_path and os.path.isfile(img_path)) or (enabled_stempel and stempel_path and os.path.isfile(stempel_path)):
             try:
-                from core.signature_image_service import insert_signature_picture
-                width_cm = float(resolved_sig.get("kepala_width_cm" if is_kepala else "guru_width_cm", 3.5))
                 align = resolved_sig.get("alignment", "CENTER")
                 sp_b = int(resolved_sig.get("spacing_before_pt", 2))
                 sp_a = int(resolved_sig.get("spacing_after_pt", 2))
                 behind = bool(resolved_sig.get("behind_text", True))
-                off_x = float(resolved_sig.get("offset_x_kepala_cm" if is_kepala else "offset_x_guru_cm", 0.0))
-                off_y = float(resolved_sig.get("offset_y_kepala_cm" if is_kepala else "offset_y_guru_cm", 0.0))
 
                 if behind:
                     p_target = paragraphs[name_idx]
@@ -237,14 +242,31 @@ def process_signature_zone(
                     if p_target is None:
                         p_target = paragraphs[name_idx].insert_paragraph_before()
 
-                if insert_signature_picture(
-                    p_target, img_path, width_cm=width_cm, alignment=align,
-                    spacing_before_pt=sp_b, spacing_after_pt=sp_a,
-                    behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y
-                ):
-                    changes += 1
+                # 1. Sisipkan Gambar Tanda Tangan
+                if enabled and img_path and os.path.isfile(img_path):
+                    width_cm = float(resolved_sig.get("kepala_width_cm" if is_kepala else "guru_width_cm", 3.5))
+                    off_x = float(resolved_sig.get("offset_x_kepala_cm" if is_kepala else "offset_x_guru_cm", 0.0))
+                    off_y = float(resolved_sig.get("offset_y_kepala_cm" if is_kepala else "offset_y_guru_cm", 0.0))
+                    if insert_signature_picture(
+                        p_target, img_path, width_cm=width_cm, alignment=align,
+                        spacing_before_pt=sp_b, spacing_after_pt=sp_a,
+                        behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y
+                    ):
+                        changes += 1
+
+                # 2. Sisipkan Gambar Stempel Resmi (Zona Kepala)
+                if enabled_stempel and stempel_path and os.path.isfile(stempel_path):
+                    w_stempel = float(resolved_sig.get("stempel_width_cm", 3.5))
+                    off_x_s = float(resolved_sig.get("offset_x_stempel_cm", -1.5))
+                    off_y_s = float(resolved_sig.get("offset_y_stempel_cm", 0.0))
+                    if insert_signature_picture(
+                        p_target, stempel_path, width_cm=w_stempel, alignment=align,
+                        spacing_before_pt=sp_b, spacing_after_pt=sp_a,
+                        behind_text=behind, offset_x_cm=off_x_s, offset_y_cm=off_y_s
+                    ):
+                        changes += 1
             except Exception as e:
-                logger.warning("Gagal menyisipkan gambar tanda tangan (role=%s): %s", role, e, exc_info=True)
+                logger.warning("Gagal menyisipkan gambar tanda tangan/stempel (role=%s): %s", role, e, exc_info=True)
 
     # 5. Proses baris NIP
     target_nip_key = "NIP Kepala" if role == "KEPALA" else "NIP Guru"

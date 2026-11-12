@@ -129,7 +129,8 @@ class SmartRPPReplacerApp:
             parent,
             get_input_dir=lambda: self.input_dir_var.get(),
             field_dictionary=self.field_dictionary,
-            on_dictionary_changed=self._on_dictionary_changed
+            on_dictionary_changed=self._on_dictionary_changed,
+            on_signature_changed=self._on_signature_changed
         )
         self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
@@ -280,6 +281,12 @@ class SmartRPPReplacerApp:
             self.engine.reload_dictionary()
         self._log("Kamus field berhasil diperbarui.")
 
+    def _on_signature_changed(self, new_settings=None):
+        """Dipanggil saat pengguna menyimpan konfigurasi tanda tangan / stempel digital."""
+        if hasattr(self, "engine") and hasattr(self.engine, "reload_signature_settings"):
+            self.engine.reload_signature_settings()
+        self._log("Pengaturan tanda tangan & stempel berhasil disinkronkan.")
+
     def _start_processing(self):
         in_dir = self.input_dir_var.get().strip()
         out_dir = self.output_dir_var.get().strip()
@@ -304,10 +311,11 @@ class SmartRPPReplacerApp:
             sig_cfg = load_signature_settings()
             en_k = sig_cfg.get("enabled_kepala", False) and os.path.isfile(sig_cfg.get("kepala_image_path", ""))
             en_g = sig_cfg.get("enabled_guru", False) and os.path.isfile(sig_cfg.get("guru_image_path", ""))
-            if not (en_k or en_g):
+            en_s = sig_cfg.get("enabled_stempel", False) and os.path.isfile(sig_cfg.get("stempel_image_path", ""))
+            if not (en_k or en_g or en_s):
                 messagebox.showwarning(
                     "Peringatan Tanda Tangan",
-                    "Mode 'Hanya Sisipkan Tanda Tangan' aktif, tetapi belum ada tanda tangan digital yang diaktifkan atau file gambarnya tidak ditemukan.\n\nSilakan klik tombol '✍ Atur Tanda Tangan Digital...' terlebih dahulu untuk memilih gambar dan mengaktifkannya."
+                    "Mode 'Hanya Sisipkan Tanda Tangan' aktif, tetapi belum ada tanda tangan digital atau stempel resmi yang diaktifkan atau berkas gambarnya tidak ditemukan.\n\nSilakan klik tombol '✍ Atur Tanda Tangan Digital...' terlebih dahulu untuk memilih gambar dan mengaktifkannya."
                 )
                 return
             rules = []
