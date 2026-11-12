@@ -51,9 +51,9 @@ def load_aliases(config_path: str = "") -> Dict[str, List[str]]:
 
 
 def normalize_string(text: str) -> str:
-    """Membersihkan dan menormalkan teks (lowercase, hilangkan tanda baca tertentu, spasi tunggal)."""
+    """Membersihkan dan menormalkan teks (lowercase, hilangkan tanda baca tertentu & kurung, spasi tunggal)."""
     t = text.lower()
-    t = re.sub(r"[:\.\-_/]", " ", t)
+    t = re.sub(r"[:\.\-_/()\[\]{}]", " ", t)
     t = re.sub(r"\s+", " ", t).strip()
     return t
 
@@ -72,6 +72,12 @@ def match_category(text: str, aliases: Optional[Dict[str, List[str]]] = None) ->
         except Exception as e:
             logger.debug("FieldDictionary fallback: %s", e)
             aliases = load_aliases()
+
+    # Jalur kamus: aliases hasil to_legacy_aliases() membawa rujukan ke FieldDictionary,
+    # sehingga never_match / exact_only / daftar global ikut berlaku di engine.
+    resolver = getattr(aliases, "_dictionary", None)
+    if resolver is not None:
+        return resolver.resolve_category(text)
 
     clean_target = normalize_string(text)
     if not clean_target:

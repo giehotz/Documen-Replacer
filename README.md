@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(x64)-0078D6.svg)](https://microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests Status](https://img.shields.io/badge/tests-57%2F57%20passing-brightgreen.svg)](tests/)
+[![Tests Status](https://img.shields.io/badge/tests-70%2F70%20passing-brightgreen.svg)](tests/)
 [![Code Style: Clean](https://img.shields.io/badge/architecture-modular-success.svg)](core/)
 
 **Smart RPP Replacer & Word to PDF Converter** adalah aplikasi desktop modern berbasis Python untuk mengotomasi pengeditan dokumen perangkat pembelajaran guru (RPP, Modul Ajar, Silabus, Program Tahunan/PROTA, dan Program Semester/PROMES berformat `.docx` maupun `.doc` lawas) serta modul terintegrasi untuk konversi massal berkas Microsoft Word ke PDF.
@@ -273,7 +273,8 @@ Documen-Replacer/
 ├── docs/                                   # Dokumentasi Teknis & Rancangan
 │   └── fiturtambahan/                      # Spesifikasi fitur lanjutan & PySide6 roadmap
 │
-├── tests/                                  # Unit Test Suite Otomatis (57 Tests)
+├── tests/                                  # Unit Test Suite Otomatis (70 Tests)
+│   ├── test_dictionary_corpus.py          # 13 tests korpus kamus lengkap, variasi kurung & anti-overwrite
 │   ├── test_doc_compat.py                  # 6 tests dukungan format .doc & konversi transparan
 │   ├── test_document_predictor.py          # 7 tests prediksi dokumen & smart merge
 │   ├── test_field_dictionary.py            # 10 tests FieldDictionary, dialog & validasi lunak
@@ -290,7 +291,7 @@ Documen-Replacer/
 
 ## 🧪 Pengujian & Verifikasi (Test Suite)
 
-Aplikasi memiliki **57 unit test otomatis** dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
+Aplikasi memiliki **70 unit test otomatis** dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
 
 Untuk menjalankan seluruh unit test suite:
 ```powershell
@@ -299,11 +300,12 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Hasil uji yang diharapkan:
 ```text
-Ran 57 tests in ~50s
+Ran 70 tests in ~45s
 OK
 ```
 
 ### Rincian Cakupan Pengujian:
+* **Korpus Kamus Lengkap & Variasi Tanda Kurung:** Resolusi 10 field standar dengan variasi tanda kurung `()`, `[]`, `{}`, instruksi template `[... Anda]`, deteksi placeholder tanda tangan `(__________________________)`, pola titimangsa titik-titik, dan proteksi label campuran berbahaya agar tidak tertimpa.
 * **Kamus Field & Sinonim:** Resolusi 10 field standar, proteksi kata jebakan (*never_match*), benturan sinonim pengguna, persistensi user dictionary, dan validasi nilai lunak (*soft warning*).
 * **Kompatibilitas Dokumen .doc & .docx:** Konversi transparan format lama Word 97-2003 (.doc) ke (.docx) via Word COM / LibreOffice, pembacaan instan via `load_document`, dan penyimpanan kembali.
 * **Prediksi Dokumen:** Analisis tabel identitas (1-kolom, 2-kolom, 3-kolom), deteksi format placeholder konkret, penggabungan variasi unik (*smart merge*), dan pengumpulan label tak dikenal (*unknown labels*).

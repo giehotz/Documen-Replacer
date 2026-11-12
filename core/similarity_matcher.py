@@ -5,7 +5,6 @@ dan menangkap salah ketik (typo) pada label dokumen tanpa ketergantungan ekstern
 """
 from typing import Dict, List, Optional, Tuple
 import difflib
-import re
 
 from core.label_recognizer import normalize_string
 
@@ -39,9 +38,17 @@ def find_fuzzy_category_match(
     best_score: float = 0.0
     best_alias: str = ""
 
+    # Hormati kamus: kategori yang dilarang (never_match / daftar global) tidak boleh dicocokkan fuzzy.
+    resolver = getattr(aliases, "_dictionary", None)
+    blocked_cats = set()
+    if resolver is not None:
+        blocked_cats = {c for c in aliases if resolver.is_blocked_for_category(text, c, for_fuzzy=True)}
+
     # Uji kecocokan langsung per frasa atau potongan teks jika teks panjang
     words = clean_text.split()
     for cat, alias_list in aliases.items():
+        if cat in blocked_cats:
+            continue
         for al in alias_list:
             clean_al = normalize_string(al)
             if not clean_al:

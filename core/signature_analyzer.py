@@ -54,6 +54,16 @@ def is_titimangsa_line(text: str) -> bool:
     t = text.strip()
     if not t:
         return False
+    # 1. Awalan/kemunculan kata titimangsa (mis. "titimangsa ................., .......... 20...")
+    if re.search(r"\btitimangsa\b", t, re.IGNORECASE):
+        return True
+    # 2. Pola placeholder kurung: [Tempat], [Tanggal] atau (Tempat), (Tanggal) atau {Tempat}, {Tanggal}
+    if re.search(r"[\[\(\{]?(?:tempat|kota|daerah)[\]\)\}]?\s*,\s*[\[\(\{]?(?:tanggal|tgl)[\]\)\}]?", t, re.IGNORECASE):
+        return True
+    # 3. Pola titik-titik tanggal berakhiran tahun (mis. "..................., ................. 20..." atau "Kota, .... 20...")
+    if re.search(r"^[A-Za-z\s\.\-\[\]\(\)\{\}]{2,},\s*(?:.*20(?:\d{2}|\.\.)|\.{3,}|\d{1,2}\s+[A-Za-z]+)", t, re.IGNORECASE):
+        return True
+    # 4. Fallback ke regex standar bulan ID
     return bool(RE_TITIMANGSA.match(t))
 
 

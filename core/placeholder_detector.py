@@ -12,40 +12,49 @@ RE_DOTS = re.compile(r"\.{3,}")
 # Regex pola garis bawah (minimal 3 underscore)
 RE_UNDERLINE = re.compile(r"_{3,}")
 
-# Regex placeholder di dalam kurung: ( .... ), ( ____ ), (   )
-RE_PAREN_PLACEHOLDER = re.compile(r"\(\s*[\._\s-]{2,}\s*\)")
+# Regex placeholder di dalam kurung: ( .... ), [ ____ ], {   }, ([ .... ])
+RE_PAREN_PLACEHOLDER = re.compile(r"[\(\[\{]\s*[\._\s\-\u2013\u2014]{2,}\s*[\)\]\}]")
 
-# Regex baris yang murni merupakan placeholder
-RE_PURE_PLACEHOLDER = re.compile(r"^[\s\._\-\(\)]+$")
+# Regex baris yang murni merupakan placeholder (titik, garis bawah, kurung kosong (), [], {}, dll)
+RE_PURE_PLACEHOLDER = re.compile(r"^[\s\._\-\u2013\u2014\(\)\[\]{}]+$")
 
 
 def is_pure_placeholder(text: str) -> bool:
-    """Memeriksa apakah teks murni berupa placeholder (titik-titik, garis bawah, strip/dash, kurung kosong)."""
+    """Memeriksa apakah teks murni berupa placeholder (titik-titik, garis bawah, strip/dash, kurung kosong (), [], {})."""
     stripped = text.strip()
     if not stripped:
         return False
     # Jika hanya berupa strip atau dash tunggal/ganda
-    if stripped in ("-", "--", "---", "–", "—"):
+    if stripped in ("-", "--", "---", "\u2013", "\u2014"):
         return True
     # Minimal mengandung setidaknya 2 karakter titik, underscore, atau strip
-    has_symbols = bool(re.search(r"[\._\-–—]{2,}", stripped))
+    has_symbols = bool(re.search(r"[\._\-\u2013\u2014]{2,}", stripped))
     return has_symbols and bool(RE_PURE_PLACEHOLDER.match(stripped))
 
 
 def has_enclosing_parentheses(text: str) -> bool:
-    """Memeriksa apakah teks diawali '(' dan diakhiri ')'."""
+    """Memeriksa apakah teks dibungkus tanda kurung bulat (), siku [], atau kurawal {}."""
     stripped = text.strip()
-    return stripped.startswith("(") and stripped.endswith(")") and len(stripped) >= 2
+    if len(stripped) < 2:
+        return False
+    pairs = [("([", "])"), ("(", ")"), ("[", "]"), ("{", "}")]
+    for open_b, close_b in pairs:
+        if stripped.startswith(open_b) and stripped.endswith(close_b):
+            return True
+    return False
 
 
 def unwrap_parentheses(text: str) -> Tuple[str, bool]:
     """
-    Jika teks dibungkus tanda kurung, mengembalikan (isi_di_dalam_kurung, True).
+    Jika teks dibungkus tanda kurung (bulat, siku, atau kurawal),
+    mengembalikan (isi_di_dalam_kurung, True).
     Jika tidak, mengembalikan (teks, False).
     """
     stripped = text.strip()
-    if has_enclosing_parentheses(stripped):
-        return stripped[1:-1].strip(), True
+    pairs = [("([", "])"), ("(", ")"), ("[", "]"), ("{", "}")]
+    for open_b, close_b in pairs:
+        if stripped.startswith(open_b) and stripped.endswith(close_b) and len(stripped) >= len(open_b) + len(close_b):
+            return stripped[len(open_b):-len(close_b)].strip(), True
     return stripped, False
 
 
@@ -57,7 +66,7 @@ def format_with_parentheses(text: str, preserve_parens: bool) -> str:
     trimmed = text.strip()
     if not trimmed:
         return text
-    if preserve_parens and not (trimmed.startswith("(") and trimmed.endswith(")")):
+    if preserve_parens and not has_enclosing_parentheses(trimmed):
         return f"( {trimmed} )"
     return trimmed
 

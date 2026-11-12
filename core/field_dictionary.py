@@ -5,7 +5,7 @@ Menyediakan pengelolaan definisi field, pencocokan label cerdas berbasis batas k
 serta validasi nilai lunak (soft validation).
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Set, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 import os
 import sys
 import re
@@ -15,6 +15,33 @@ import logging
 from core.label_recognizer import normalize_string
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_NIP_TOKENS = ("nip", "nipy", "niy", "nuptk", "nomor induk pegawai", "nomor induk yayasan")
+DEFAULT_KEPALA_CONTEXT = ("kepala", "kamad", "kepsek", "pimpinan", "plt", "plh", "pjs", "mengetahui", "menyetujui")
+
+
+def _norm(text: str) -> str:
+    """
+    Normalisasi khusus kamus: seperti normalize_string() tetapi koma, titik koma, tanda kurung
+    bulat (), kurung siku [], kurung kurawal {}, dan backslash juga dibuang menjadi spasi.
+    """
+    t = normalize_string(text or "")
+    t = re.sub(r"[,;()\[\]{}\\]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _wb(phrase: str, text: str) -> bool:
+    """True bila frasa muncul sebagai kata utuh (berbatas-kata) di dalam teks."""
+    return bool(phrase) and re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", text) is not None
+
+
+class LegacyAliases(dict):
+    """
+    Dict[kategori, List[sinonim]] kompatibel format lama, yang MEMBAWA rujukan ke FieldDictionary asalnya.
+    match_category() dan find_fuzzy_category_match() memakai rujukan ini agar never_match,
+    exact_only_synonyms, dan daftar global ikut berlaku pada jalur engine (bukan hanya di GUI).
+    """
+    _dictionary: Optional["FieldDictionary"] = None
 
 
 @dataclass(frozen=True)
@@ -50,8 +77,16 @@ class FieldDictionary:
         fields_list: List[FieldDef],
         default_path: str = "",
         user_path: str = "",
-        user_synonyms: Optional[Dict[str, List[str]]] = None
+        user_synonyms: Optional[Dict[str, List[str]]] = None,
+        nip_tokens: Optional[List[str]] = None,
+        nip_kepala_context: Optional[List[str]] = None,
+        global_never_match: Optional[List[str]] = None,
+        global_ignore_exact: Optional[List[str]] = None,
     ):
+        self._nip_tokens: List[str] = [_norm(x) for x in (nip_tokens or DEFAULT_NIP_TOKENS) if _norm(x)]
+        self._nip_kepala_context: List[str] = [_norm(x) for x in (nip_kepala_context or DEFAULT_KEPALA_CONTEXT) if _norm(x)]
+        self._global_never_match: List[str] = [_norm(x) for x in (global_never_match or []) if _norm(x)]
+        self._global_ignore_exact: List[str] = [_norm(x) for x in (global_ignore_exact or []) if _norm(x)]
         self._fields: List[FieldDef] = fields_list
         self._fields_by_id: Dict[str, FieldDef] = {f.id: f for f in fields_list}
         self.default_path = default_path
@@ -85,10 +120,14 @@ class FieldDictionary:
             default_path = os.path.join(base_dir, "config", "dictionary.default.json")
 
         fields_list: List[FieldDef] = []
+        root_cfg: Dict[str, Any] = {}
         if os.path.isfile(default_path):
             try:
                 with open(default_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                    root_cfg = data if isinstance(data, dict) else {}
+                    if root_cfg.get("version") not in (None, 2):
+                        logger.warning("Versi skema kamus %r tidak dikenal (diharapkan 2).", root_cfg.get("version"))
                     for item in data.get("fields", []):
                         f_def = FieldDef(
                             id=item["id"],
@@ -133,7 +172,17 @@ class FieldDictionary:
             except Exception as e:
                 logger.warning("Kamus pengguna %s rusak atau tidak valid: %s. Menggunakan kamus bawaan.", user_path, e)
 
-        return cls(fields_list, default_path=default_path, user_path=user_path, user_synonyms=user_synonyms)
+        nip_cfg = root_cfg.get("nip_rule") or {}
+        return cls(
+            fields_list,
+            default_path=default_path,
+            user_path=user_path,
+            user_synonyms=user_synonyms,
+            nip_tokens=nip_cfg.get("tokens"),
+            nip_kepala_context=nip_cfg.get("kepala_context"),
+            global_never_match=root_cfg.get("global_never_match"),
+            global_ignore_exact=root_cfg.get("global_ignore_exact"),
+        )
 
     def fields(self) -> List[FieldDef]:
         """Mengembalikan seluruh daftar field yang terdaftar."""
@@ -159,67 +208,82 @@ class FieldDictionary:
         """Mengembalikan daftar sinonim kustom pengguna untuk field tertentu."""
         return list(self._user_synonyms.get(field_id, []))
 
+    def _is_globally_ignored(self, clean_target: str) -> bool:
+        if clean_target in self._global_ignore_exact:
+            return True
+        return any(_wb(p, clean_target) for p in self._global_never_match)
+
+    def is_blocked_for_category(self, label: str, category: str, for_fuzzy: bool = False) -> bool:
+        """
+        True bila label dilarang cocok ke kategori ini (daftar global atau never_match field-nya).
+        for_fuzzy=True: kategori bertipe nip juga diblokir, karena NIP/NUPTK hanya boleh dikenali lewat
+        aturan NIP (token eksplisit). Tanpa ini 'Wakil Kepala Madrasah' mirip dengan alias 'NIP Kepala Madrasah'.
+        """
+        clean = _norm(label)
+        if self._is_globally_ignored(clean):
+            return True
+        if for_fuzzy and any(f.category == category and f.value_type == "nip" for f in self._fields):
+            return True
+        return any(
+            f.category == category and self._matches_never_match(clean, f.never_match)
+            for f in self._fields
+        )
+
     def resolve(self, label: str) -> MatchResult:
         """
-        Mencocokkan teks label terhadap kamus field secara deterministik.
-        Urutan prioritas:
-        1. Normalisasi teks
-        2. Aturan khusus NIP / NUPTK
-        3. Pemeriksaan exact_only_synonyms
-        4. Pemeriksaan never_match & word_boundary matching
+        Mencocokkan teks label terhadap kamus field secara deterministik. Urutan:
+        1. Normalisasi (koma ikut dibuang); label kosong/placeholder -> none
+        2. global_ignore_exact dan global_never_match -> ignored
+        3. Aturan NIP (nip, nipy, niy, nuptk, nomor induk ...) -> nip_kepala / nip_guru
+        4. Per field: lewati bila never_match cocok; kandidat dari exact_only (label sama persis)
+           dan synonyms (berbatas-kata). Pemenang: label-sama-persis > sinonim terpanjang > priority
+        5. Dua field berbeda seri -> ambiguous (field=None, tidak menebak)
         """
-        clean_target = normalize_string(label)
-        if not clean_target:
+        clean_target = _norm(label)
+        if not clean_target or not re.search(r"[a-z0-9]", clean_target):
             return MatchResult(None, 0.0, "none", "")
 
-        # 1. Aturan Prioritas Khusus NIP / NUPTK
-        is_nip = bool(re.search(r"\b(nip|nuptk)\b", clean_target))
-        if is_nip:
-            if "kepala" in clean_target or "kamad" in clean_target:
-                return MatchResult(self.field_by_id("nip_kepala"), 1.0, "nip_rule", "nip kepala")
-            return MatchResult(self.field_by_id("nip_guru"), 1.0, "nip_rule", "nip guru")
+        if self._is_globally_ignored(clean_target):
+            return MatchResult(None, 0.0, "ignored", "")
 
-        # 2. Pemeriksaan Exact-Only Synonyms
-        for f_def in self._fields:
-            # Cek never match untuk field ini
-            if self._matches_never_match(clean_target, f_def.never_match):
-                continue
+        for tok in self._nip_tokens:
+            if _wb(tok, clean_target):
+                is_kepala = any(_wb(k, clean_target) for k in self._nip_kepala_context)
+                f_nip = self.field_by_id("nip_kepala" if is_kepala else "nip_guru")
+                if f_nip is not None:
+                    return MatchResult(f_nip, 1.0, "nip_rule", tok)
+                break
 
-            for ex_syn in f_def.exact_only_synonyms:
-                clean_ex = normalize_string(ex_syn)
-                if clean_target == clean_ex:
-                    return MatchResult(f_def, 1.0, "exact", ex_syn)
-
-        # 3. Kumpulkan seluruh sinonim umum (bawaan + pengguna) untuk word-boundary matching
-        matched_candidates: List[Tuple[FieldDef, str, int]] = []
+        cands: List[Tuple[Tuple[int, int, int], FieldDef, str, str]] = []
         for f_def in self._fields:
             if self._matches_never_match(clean_target, f_def.never_match):
                 continue
+            for ex in f_def.exact_only_synonyms:
+                if _norm(ex) == clean_target:
+                    how = "exact" if " " in clean_target else "exact_bare"
+                    cands.append(((2, len(clean_target), f_def.priority), f_def, ex, how))
+            for syn in self.get_all_synonyms_for_field(f_def.id):
+                cs = _norm(syn)
+                if cs and _wb(cs, clean_target):
+                    whole = cs == clean_target
+                    cands.append(((2 if whole else 1, len(cs), f_def.priority), f_def, syn,
+                                  "exact" if whole else "word_boundary"))
 
-            all_syns = self.get_all_synonyms_for_field(f_def.id)
-            for syn in all_syns:
-                clean_syn = normalize_string(syn)
-                if not clean_syn:
-                    continue
-                pattern = rf"\b{re.escape(clean_syn)}\b"
-                if re.search(pattern, clean_target):
-                    matched_candidates.append((f_def, syn, len(clean_syn)))
+        if not cands:
+            return MatchResult(None, 0.0, "none", "")
 
-        if matched_candidates:
-            # Urutkan berdasarkan: panjang kecocokan terpanjang, lalu prioritas field tertinggi
-            matched_candidates.sort(key=lambda x: (x[2], x[0].priority), reverse=True)
-            best_field, best_syn, _ = matched_candidates[0]
-            return MatchResult(best_field, 1.0, "word_boundary", best_syn)
-
-        return MatchResult(None, 0.0, "none", "")
+        cands.sort(key=lambda c: c[0], reverse=True)
+        top_key, top_field, top_syn, top_how = cands[0]
+        rivals = [c for c in cands[1:] if c[0] == top_key and c[1].id != top_field.id]
+        if rivals:
+            names = "+".join([top_field.id] + [r[1].id for r in rivals])
+            return MatchResult(None, 0.0, "ambiguous", names)
+        score = 0.85 if top_how == "exact_bare" else 1.0
+        return MatchResult(top_field, score, top_how, top_syn)
 
     def _matches_never_match(self, clean_target: str, never_match_list: List[str]) -> bool:
-        """Memeriksa apakah target mengandung frasa negatif yang dilarang untuk field ini."""
-        for nm in never_match_list:
-            clean_nm = normalize_string(nm)
-            if clean_nm and re.search(rf"\b{re.escape(clean_nm)}\b", clean_target):
-                return True
-        return False
+        """Memeriksa apakah target mengandung frasa negatif (berbatas-kata) yang dilarang untuk field ini."""
+        return any(_wb(_norm(nm), clean_target) for nm in never_match_list if _norm(nm))
 
     def resolve_category(self, label: str) -> Optional[str]:
         """Helper kompatibel yang mengembalikan string kategori engine (contoh: 'Nama Kepala')."""
@@ -233,7 +297,7 @@ class FieldDictionary:
         Menambahkan sinonim kustom pengguna ke field terpilih.
         Memvalidasi agar tidak ada benturan sinonim duplikat lintas field.
         """
-        clean_s = normalize_string(synonym)
+        clean_s = _norm(synonym)
         if not clean_s:
             raise ValueError("Sinonim tidak boleh kosong.")
 
@@ -245,12 +309,12 @@ class FieldDictionary:
         for f in self._fields:
             # Cek di exact_only
             for es in f.exact_only_synonyms:
-                if normalize_string(es) == clean_s:
+                if _norm(es) == clean_s:
                     raise ValueError(f"Sinonim '{synonym}' sudah menjadi istilah eksklusif pada '{f.display_label}'.")
             # Cek di sinonim umum
             all_s = self.get_all_synonyms_for_field(f.id)
             for s in all_s:
-                if normalize_string(s) == clean_s:
+                if _norm(s) == clean_s:
                     if f.id == field_id:
                         return  # Sudah ada di field yang sama, tidak perlu diduplikasi
                     raise ValueError(f"Sinonim '{synonym}' sudah dimiliki oleh field '{f.display_label}'.")
@@ -284,21 +348,39 @@ class FieldDictionary:
 
     def to_legacy_aliases(self) -> Dict[str, List[str]]:
         """
-        Menghasilkan kamus aliases datar yang kompatibel dengan format lama
-        Dict[category, List[synonym]] untuk digunakan oleh similarity_matcher dan test legacy.
+        Kamus datar Dict[kategori, List[sinonim]] untuk kode lama dan fuzzy-match.
+        HANYA berisi `synonyms` (bukan exact_only_synonyms): kata tunggal seperti 'sekolah' membuat
+        fuzzy salah mengenali 'Kepal Sekolah' sebagai Nama Madrasah. Hasilnya LegacyAliases yang
+        membawa rujukan ke kamus ini sehingga aturan never_match tetap berlaku di jalur engine.
         """
-        legacy: Dict[str, List[str]] = {}
+        legacy = LegacyAliases()
+        legacy._dictionary = self
         for f_def in self._fields:
-            cat = f_def.category
-            legacy.setdefault(cat, [])
-            all_s = self.get_all_synonyms_for_field(f_def.id)
-            for s in all_s:
-                if s not in legacy[cat]:
-                    legacy[cat].append(s)
-            for es in f_def.exact_only_synonyms:
-                if es not in legacy[cat]:
-                    legacy[cat].append(es)
+            lst = legacy.setdefault(f_def.category, [])
+            for s in self.get_all_synonyms_for_field(f_def.id):
+                if s not in lst:
+                    lst.append(s)
         return legacy
+
+    def validate_integrity(self) -> List[str]:
+        """Memeriksa kesehatan kamus. Mengembalikan daftar masalah (kosong = sehat)."""
+        problems: List[str] = []
+        owner: Dict[str, str] = {}
+        for f in self._fields:
+            for s in list(f.synonyms) + list(f.exact_only_synonyms):
+                cs = _norm(s)
+                if cs != s:
+                    problems.append(f"[{f.id}] istilah belum ternormalisasi: {s!r} (seharusnya {cs!r})")
+                if cs in owner and owner[cs] != f.id:
+                    problems.append(f"duplikat lintas field: {cs!r} dimiliki {owner[cs]} dan {f.id}")
+                owner.setdefault(cs, f.id)
+                for p in self._global_never_match:
+                    if _wb(p, cs):
+                        problems.append(f"[{f.id}] sinonim {cs!r} memuat frasa global_never_match {p!r}")
+            both = {_norm(x) for x in f.synonyms} & {_norm(x) for x in f.exact_only_synonyms}
+            if both:
+                problems.append(f"[{f.id}] tumpang tindih synonyms/exact_only: {sorted(both)}")
+        return problems
 
     def validate_value(self, field_id: str, value: str) -> Optional[str]:
         """
@@ -315,16 +397,22 @@ class FieldDictionary:
 
         v_type = f_def.value_type
 
-        # 1. Validasi NIP (18 digit angka)
+        # 1. Validasi NIP: '-' (non-NIP), 16 digit (NUPTK), atau 18 digit (NIP PNS)
         if v_type == "nip":
+            if val in {"-", "\u2013", "\u2014"}:
+                return None
             digits_only = re.sub(r"\D", "", val)
-            if digits_only and len(digits_only) != 18:
-                return f"NIP biasanya terdiri dari 18 digit angka (terdeteksi {len(digits_only)} digit)."
+            if digits_only and len(digits_only) not in (16, 18):
+                return (f"NIP biasanya 18 digit (PNS) atau NUPTK 16 digit "
+                        f"(terdeteksi {len(digits_only)} digit).")
 
         # 2. Validasi Tahun Pelajaran (year_range: 2025/2026 atau 20.. /20..)
         elif v_type == "year_range":
             if not re.search(r"20(?:\d{2}|\.\.)\s*[/–-]\s*20(?:\d{2}|\.\.)", val):
                 return "Tahun Pelajaran sebaiknya berupa rentang dua tahun (contoh: 2026/2027)."
+            m_yr = re.search(r"(20\d{2})\s*[/\u2013-]\s*(20\d{2})", val)
+            if m_yr and int(m_yr.group(2)) != int(m_yr.group(1)) + 1:
+                return "Tahun Pelajaran biasanya dua tahun berurutan (contoh: 2026/2027)."
 
         # 3. Validasi Tahun Tunggal (year_single: 2026)
         elif v_type == "year_single":

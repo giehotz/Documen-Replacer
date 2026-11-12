@@ -1,5 +1,76 @@
 {
   "version": 2,
+  "normalization": "lowercase; ganti . : ; , - _ / ( ) \\ dengan spasi; rapatkan spasi",
+  "nip_rule": {
+    "tokens": [
+      "nip",
+      "nipy",
+      "niy",
+      "nuptk",
+      "nomor induk pegawai",
+      "nomor induk yayasan"
+    ],
+    "kepala_context": [
+      "kepala",
+      "kamad",
+      "kepsek",
+      "pimpinan",
+      "plt",
+      "plh",
+      "pjs",
+      "mengetahui",
+      "menyetujui"
+    ]
+  },
+  "global_never_match": [
+    "nama siswa",
+    "nama peserta didik",
+    "peserta didik",
+    "jumlah siswa",
+    "jumlah peserta didik",
+    "kegiatan siswa",
+    "kegiatan peserta didik",
+    "tanggal lahir",
+    "tempat lahir",
+    "alokasi waktu",
+    "capaian pembelajaran",
+    "tujuan pembelajaran",
+    "alur tujuan pembelajaran",
+    "model pembelajaran",
+    "sumber belajar",
+    "kegiatan pendahuluan",
+    "kegiatan inti",
+    "kegiatan penutup",
+    "mata pelajaran siswa",
+    "pertemuan ke"
+  ],
+  "global_ignore_exact": [
+    "kelas",
+    "fase",
+    "mata pelajaran",
+    "mapel",
+    "topik",
+    "tema",
+    "unit",
+    "bab",
+    "materi",
+    "elemen",
+    "kurikulum",
+    "kompetensi awal",
+    "penilaian",
+    "media",
+    "metode",
+    "pendekatan",
+    "strategi",
+    "output",
+    "setup",
+    "jumlah",
+    "keterangan",
+    "catatan",
+    "no",
+    "nomor",
+    "nama"
+  ],
   "fields": [
     {
       "id": "nama_lembaga",
@@ -9,14 +80,74 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Nama Sekolah",
-        "Nama Madrasah",
-        "Satuan Pendidikan",
-        "Unit Kerja",
-        "Instansi"
+        "instansi",
+        "lembaga pendidikan",
+        "madrasah anda",
+        "nama instansi",
+        "nama lembaga",
+        "nama madrasah",
+        "nama madrasah anda",
+        "nama madrasah ibtidaiyah",
+        "nama mi",
+        "nama mi anda",
+        "nama satuan pendidikan",
+        "nama satuan pendidikan anda",
+        "nama sd",
+        "nama sd anda",
+        "nama sd mi",
+        "nama sd mi anda",
+        "nama sekolah",
+        "nama sekolah anda",
+        "nama sekolah dasar",
+        "nama sekolah dasar anda",
+        "nama sekolah madrasah",
+        "nama unit kerja",
+        "nama unit kerja anda",
+        "satuan pendidikan",
+        "satuan pendidikan madrasah",
+        "sekolah anda",
+        "sekolah madrasah",
+        "unit kerja"
+      ],
+      "exact_only_synonyms": [
+        "madrasah",
+        "sekolah"
+      ],
+      "never_match": [
+        "alamat madrasah",
+        "alamat sekolah",
+        "asal sekolah",
+        "guru sekolah",
+        "kepala madrasah",
+        "kepala sekolah",
+        "logo sekolah",
+        "misi sekolah",
+        "visi sekolah"
+      ],
+      "notes": "Nama lembaga yang dicetak di kop/identitas. 'Kepala Sekolah' sengaja DILARANG di sini (milik nama_kepala)."
+    },
+    {
+      "id": "jabatan_kepala",
+      "category": "Jabatan Kepala",
+      "display_label": "Istilah Jabatan Kepala",
+      "value_type": "role_title",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "istilah jabatan kepala",
+        "istilah kepala",
+        "istilah pimpinan",
+        "jabatan kepala",
+        "jabatan kepala madrasah",
+        "jabatan kepala sekolah",
+        "jabatan pimpinan",
+        "nama jabatan kepala",
+        "sebutan jabatan kepala",
+        "sebutan kepala"
       ],
       "exact_only_synonyms": [],
-      "never_match": []
+      "never_match": [],
+      "notes": "Menyimpan ISTILAH jabatan (mis. 'Kepala Sekolah' -> 'Kepala Madrasah'), bukan nama orangnya. Dipakai untuk aturan exact-replace."
     },
     {
       "id": "nama_kepala",
@@ -26,16 +157,54 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Kepala Madrasah",
-        "Kepala Sekolah",
-        "Nama Kepala",
-        "Mengetahui Kepala",
-        "Plt. Kepala Sekolah",
-        "Plt. Kepala Madrasah",
-        "Plt. Kepala"
+        "kepala madrasah",
+        "kepala madrasah anda",
+        "kepala madrasah ibtidaiyah",
+        "kepala mi",
+        "kepala satuan pendidikan",
+        "kepala sd",
+        "kepala sekolah",
+        "kepala sekolah anda",
+        "mengetahui kepala",
+        "mengetahui kepala madrasah",
+        "mengetahui kepala sekolah",
+        "menyetujui kepala",
+        "menyetujui kepala madrasah",
+        "menyetujui kepala sekolah",
+        "nama kepala",
+        "nama kepala anda",
+        "nama kepala madrasah",
+        "nama kepala madrasah anda",
+        "nama kepala sekolah",
+        "nama kepala sekolah anda",
+        "nama pimpinan",
+        "pelaksana harian kepala",
+        "pelaksana tugas kepala",
+        "pimpinan madrasah",
+        "pimpinan sekolah",
+        "pjs kepala",
+        "pjs kepala madrasah",
+        "plh kepala",
+        "plh kepala madrasah",
+        "plt kepala",
+        "plt kepala madrasah",
+        "plt kepala sekolah"
       ],
-      "exact_only_synonyms": [],
-      "never_match": []
+      "exact_only_synonyms": [
+        "kamad",
+        "kepsek"
+      ],
+      "never_match": [
+        "istilah jabatan kepala",
+        "jabatan kepala",
+        "nip kepala",
+        "ruang kepala",
+        "tata usaha kepala",
+        "wakil kepala",
+        "wakil kepala madrasah",
+        "wakil kepala sekolah"
+      ],
+      "notes": "Pemilik tunggal 'Kepala Sekolah/Kepala Madrasah' (dibutuhkan test lama). nip_kepala diproses lebih dulu oleh aturan NIP."
     },
     {
       "id": "nip_kepala",
@@ -43,17 +212,24 @@
       "display_label": "NIP Kepala Madrasah",
       "value_type": "nip",
       "match_mode": "word_boundary",
-      "priority": 60,
+      "priority": 50,
       "synonyms": [
-        "NIP Kepala",
-        "NIP Kepala Sekolah",
-        "NIP Kepala Madrasah",
-        "NIP."
+        "nip kamad",
+        "nip kepala",
+        "nip kepala madrasah",
+        "nip kepala sekolah",
+        "nip kepsek",
+        "nip nuptk kepala",
+        "nip nuptk kepala madrasah",
+        "nip pimpinan",
+        "nip plt kepala",
+        "nomor induk pegawai kepala",
+        "nomor induk pegawai kepala madrasah",
+        "nomor induk pegawai kepala sekolah"
       ],
-      "exact_only_synonyms": [
-        "NIP."
-      ],
-      "never_match": []
+      "exact_only_synonyms": [],
+      "never_match": [],
+      "notes": "Selalu diputuskan oleh aturan NIP (label berisi nip/nuptk/niy + kata kepala/kamad/kepsek/pimpinan/plt)."
     },
     {
       "id": "nama_guru",
@@ -63,22 +239,73 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Nama Penyusun",
-        "Guru Penyusun",
-        "Disusun Oleh",
-        "Penyusun",
-        "Pengembang Modul",
-        "Nama Guru",
-        "Guru Kelas",
-        "Guru Mata Pelajaran",
-        "Guru Bidang Studi",
-        "Pendidik",
-        "Wali Kelas"
+        "dibuat oleh",
+        "dikembangkan oleh",
+        "disiapkan oleh",
+        "disusun oleh",
+        "ditulis oleh",
+        "guru anda",
+        "guru bidang studi",
+        "guru kelas",
+        "guru mapel",
+        "guru mata pelajaran",
+        "guru pamong",
+        "guru pengajar",
+        "guru pengampu",
+        "guru penyusun",
+        "identitas guru penyusun",
+        "identitas penyusun",
+        "nama guru",
+        "nama guru anda",
+        "nama guru mapel anda",
+        "nama guru penyusun",
+        "nama guru penyusun anda",
+        "nama pendidik",
+        "nama pendidik anda",
+        "nama pengajar",
+        "nama pengampu",
+        "nama pengembang",
+        "nama penulis",
+        "nama penyusun",
+        "nama penyusun anda",
+        "pendidik mata pelajaran",
+        "pengampu mata pelajaran",
+        "pengembang modul",
+        "pengembang perangkat",
+        "pengembang rpp",
+        "penyusun modul",
+        "penyusun perangkat",
+        "penyusun rpp",
+        "wali kelas",
+        "yang menyusun"
       ],
-      "exact_only_synonyms": [],
+      "exact_only_synonyms": [
+        "dibuat",
+        "disusun",
+        "pendidik",
+        "pengajar",
+        "pengampu",
+        "pengembang",
+        "penulis",
+        "penyusun"
+      ],
       "never_match": [
-        "jumlah guru"
-      ]
+        "aktivitas guru",
+        "guru dan peserta didik",
+        "guru dan siswa",
+        "jumlah guru",
+        "kegiatan guru",
+        "kegiatan pendidik",
+        "kualifikasi guru",
+        "nip guru",
+        "peran guru",
+        "peran pendidik",
+        "rasio guru",
+        "tenaga kependidikan",
+        "tenaga pendidik",
+        "tugas guru"
+      ],
+      "notes": "'Guru Kelas IV/VI' HARUS tetap Nama Guru (test lama; penanda peran di blok tanda tangan)."
     },
     {
       "id": "nip_guru",
@@ -86,33 +313,37 @@
       "display_label": "NIP / NUPTK Guru",
       "value_type": "nip",
       "match_mode": "word_boundary",
-      "priority": 60,
+      "priority": 50,
       "synonyms": [
-        "NIP Guru Mata Pelajaran",
-        "NIP Guru Kelas",
-        "NIP Guru",
-        "NUPTK",
-        "Identitas Guru",
-        "NIP Penyusun"
+        "nip guru",
+        "nip guru kelas",
+        "nip guru mapel",
+        "nip guru mata pelajaran",
+        "nip guru penyusun",
+        "nip nuptk",
+        "nip nuptk guru",
+        "nip pendidik",
+        "nip pengampu",
+        "nip pengembang",
+        "nip penyusun",
+        "nip wali kelas",
+        "nipy guru",
+        "niy guru",
+        "nomor induk pegawai guru",
+        "nomor induk pegawai penyusun",
+        "nuptk guru"
       ],
-      "exact_only_synonyms": [],
-      "never_match": []
-    },
-    {
-      "id": "jabatan_kepala",
-      "category": "Jabatan Kepala",
-      "display_label": "Istilah Jabatan Kepala",
-      "value_type": "role_title",
-      "match_mode": "word_boundary",
-      "priority": 40,
-      "synonyms": [
-        "Jabatan Kepala",
-        "Istilah Jabatan",
-        "Jabatan Pimpinan",
-        "Sebutan Kepala"
+      "exact_only_synonyms": [
+        "identitas guru",
+        "nip",
+        "nipy",
+        "niy",
+        "nomor induk pegawai",
+        "nomor induk yayasan",
+        "nuptk"
       ],
-      "exact_only_synonyms": [],
-      "never_match": []
+      "never_match": [],
+      "notes": "NIP tanpa konteks kepala => nip_guru (perilaku aturan NIP lama)."
     },
     {
       "id": "tahun_pelajaran",
@@ -122,17 +353,36 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Tahun Pelajaran",
-        "Tahun Ajaran",
-        "Th. Pelajaran",
-        "Tahun Ajaran Pelajaran"
+        "tahun ajaran",
+        "tahun ajaran berjalan",
+        "tahun ajaran pelajaran",
+        "tahun akademik",
+        "tahun pelajaran",
+        "tahun pelajaran berjalan",
+        "tahun pelajaran semester",
+        "tahun pembelajaran",
+        "th ajaran",
+        "th pelajaran",
+        "thn ajaran",
+        "thn pelajaran"
       ],
       "exact_only_synonyms": [
-        "TP"
+        "t a",
+        "t p",
+        "ta",
+        "th",
+        "thn",
+        "tp"
       ],
       "never_match": [
-        "output"
-      ]
+        "output",
+        "program tahunan",
+        "tahun lahir",
+        "tahun pembuatan",
+        "tahun penyusunan",
+        "tahun terbit"
+      ],
+      "notes": "Format nilai: 2026/2027. Label gabungan 'Semester/Tahun Pelajaran' -> sinonim terpanjang menang."
     },
     {
       "id": "tahun_penyusunan",
@@ -142,12 +392,26 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Tahun Penyusunan",
-        "Tahun Pembuatan",
-        "Tahun Disusun"
+        "tahun dibuat",
+        "tahun disusun",
+        "tahun pembuatan",
+        "tahun pembuatan modul",
+        "tahun pembuatan rpp",
+        "tahun pengembangan",
+        "tahun penyusunan",
+        "tahun penyusunan modul",
+        "tahun penyusunan rpp",
+        "tahun perangkat"
       ],
       "exact_only_synonyms": [],
-      "never_match": []
+      "never_match": [
+        "tahun ajaran",
+        "tahun akademik",
+        "tahun lahir",
+        "tahun pelajaran",
+        "tahun terbit"
+      ],
+      "notes": "Format nilai: 2026 (satu tahun). JANGAN diisi 2026/2027."
     },
     {
       "id": "semester",
@@ -157,14 +421,37 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Semester",
-        "Semester Ganjil",
-        "Semester Genap"
+        "semester",
+        "semester berjalan",
+        "semester ganjil",
+        "semester genap",
+        "semester ke"
       ],
       "exact_only_synonyms": [
-        "Smt"
+        "sem",
+        "smstr",
+        "smt"
       ],
-      "never_match": []
+      "never_match": [
+        "akhir semester",
+        "kelas dan semester",
+        "kelas fase semester",
+        "kelas semester",
+        "libur semester",
+        "penilaian akhir semester",
+        "penilaian tengah semester",
+        "program semester",
+        "promes",
+        "remedial semester",
+        "semester kelas",
+        "semester tahun pelajaran",
+        "tahun ajaran semester",
+        "tahun pelajaran semester",
+        "tengah semester",
+        "ujian semester",
+        "ulangan semester"
+      ],
+      "notes": "PERINGATAN: 'Kelas/Semester : VI / 1' adalah label campuran; JANGAN ditimpa nilai semester. Nilai: Ganjil/Genap."
     },
     {
       "id": "titimangsa",
@@ -174,16 +461,48 @@
       "match_mode": "word_boundary",
       "priority": 50,
       "synonyms": [
-        "Titimangsa",
-        "Tempat, Tanggal",
-        "Tanggal Pengesahan"
+        "dibuat di",
+        "disahkan di",
+        "disahkan pada tanggal",
+        "ditetapkan di",
+        "ditetapkan pada tanggal",
+        "kota tanggal",
+        "tanggal disusun",
+        "tanggal ditetapkan",
+        "tanggal pembuatan",
+        "tanggal penetapan",
+        "tanggal pengesahan",
+        "tanggal penyusunan",
+        "tempat dan tanggal",
+        "tempat dan tanggal pengesahan",
+        "tempat penetapan",
+        "tempat pengesahan",
+        "tempat tanggal",
+        "tempat tanggal anda",
+        "tempat tanggal pengesahan",
+        "titimangsa"
       ],
       "exact_only_synonyms": [
-        "Tanggal"
+        "tanggal",
+        "tempat tgl",
+        "tgl"
       ],
       "never_match": [
-        "tanggal lahir"
-      ]
+        "tanggal kegiatan",
+        "tanggal lahir",
+        "tanggal masuk",
+        "tanggal observasi",
+        "tanggal pelaksanaan",
+        "tanggal penilaian",
+        "tanggal pertemuan",
+        "tanggal terbit",
+        "tanggal ujian",
+        "tempat dan tanggal lahir",
+        "tempat lahir",
+        "tempat tanggal lahir",
+        "tempat tinggal"
+      ],
+      "notes": "Format nilai: 'Kota, 12 Juli 2026'."
     }
   ]
 }

@@ -109,8 +109,11 @@ class TestFieldDictionary(unittest.TestCase):
         self.assertIn("Nama Madrasah", aliases)
         self.assertIn("Tahun Ajaran", aliases)
         self.assertIn("Nama Guru", aliases)
-        self.assertIn("Satuan Pendidikan", aliases["Nama Madrasah"])
-        self.assertIn("TP", aliases["Tahun Ajaran"])
+        # Istilah kamus berbentuk ternormalisasi (huruf kecil)
+        self.assertIn("satuan pendidikan", [x.lower() for x in aliases["Nama Madrasah"]])
+        self.assertIn("tahun pelajaran", [x.lower() for x in aliases["Tahun Ajaran"]])
+        # exact_only_synonyms TIDAK boleh ikut ke daftar fuzzy
+        self.assertNotIn("tp", [x.lower() for x in aliases["Tahun Ajaran"]])
 
     def test_validate_value_soft(self):
         """Memastikan validasi nilai lunak memberikan pesan peringatan yang akurat tanpa memblokir."""
@@ -135,7 +138,7 @@ class TestFieldDictionary(unittest.TestCase):
         doc_path = os.path.join(self.test_dir, "unknown_sample.docx")
         doc = Document()
         doc.add_heading("RPP Inovatif", level=1)
-        doc.add_paragraph("Pengembang Perangkat : ................................................")
+        doc.add_paragraph("Perancang Pembelajaran : ................................................")
         doc.add_paragraph("Nama Sekolah : SD Contoh")
 
         table = doc.add_table(rows=2, cols=3)
@@ -150,7 +153,7 @@ class TestFieldDictionary(unittest.TestCase):
         doc.save(doc_path)
 
         unknowns = collect_unknown_labels(doc_path, self.dict)
-        self.assertIn("Pengembang Perangkat", unknowns)
+        self.assertIn("Perancang Pembelajaran", unknowns)
         self.assertIn("Instruktur Lapangan", unknowns)
         self.assertNotIn("Nama Sekolah", unknowns)
         self.assertNotIn("Tahun Pelajaran", unknowns)
