@@ -22,6 +22,7 @@ Aplikasi desktop berbasis Python (Tkinter GUI) yang dirancang khusus untuk mempr
 ```
 d:\docomen_replacer\
 ├── core/                       # Inti Logika Bisnis (Pure Python, headless, no GUI dependencies)
+│   ├── __init__.py
 │   ├── exact_matcher.py        # Lapis 1: Pencocokan string persis berbasis regex terkompilasi
 │   ├── regex_replacer.py       # Lapis 2: Penggantian pola fleksibel berbobot
 │   ├── similarity_matcher.py   # Lapis 3: Pencocokan kemiripan string (difflib)
@@ -33,13 +34,24 @@ d:\docomen_replacer\
 │   ├── signature_analyzer.py   # Deteksi zona tanda tangan (tabel 1 kolom/2 kolom, baris nama)
 │   ├── signature_image_service.py # Penempatan XML gambar w:drawing behind text (3 gambar)
 │   ├── validation_engine.py    # Perhitungan confidence score (HIGH/MEDIUM/LOW) & validasi
-│   └── replacement_engine.py   # Orkestrator utama alur Plan → Preview → Apply
+│   ├── replacement_engine.py   # Orkestrator utama alur: plan_document_changes & apply_approved_changes
+│   └── pdf_converter/          # Subpaket Konversi Dokumen Word ke PDF
+│       ├── __init__.py         # Ekspor ConversionManager, ConversionStatus, dll.
+│       ├── base.py             # BaseConverter interface & kelas data opsi konversi
+│       ├── conversion_manager.py # Manajer batch antrean konversi & multi-thread worker
+│       ├── libreoffice_engine.py # Engine konversi fallback LibreOffice headless
+│       └── word_com_engine.py  # Engine konversi utama MS Word COM (win32com)
 │
 ├── document/                   # Manipulasi Dokumen Word Tingkat Rendah (python-docx & XML)
+│   ├── __init__.py
 │   ├── docx_reader.py          # Ekstraksi teks paragraf, tabel berulang, header, & footer
-│   └── docx_writer.py          # Run-level text replacement & preservasi drawing/formatting
+│   ├── docx_writer.py          # Run-level text replacement & preservasi drawing/formatting
+│   ├── header_footer_processor.py # Penelusuran & penggantian teks header/footer tiap seksi
+│   ├── paragraph_processor.py  # Penggantian teks run-level pada paragraf & proteksi drawing
+│   └── table_processor.py      # Penggantian teks run-level di dalam sel-sel tabel dokumen
 │
 ├── gui/                        # Antarmuka Pengguna Desktop (Tkinter + ttk)
+│   ├── __init__.py
 │   ├── app.py                  # Jendela utama (SmartRPPReplacerApp) & manajemen tab/thread
 │   ├── replacement_view.py     # Tab 1: Form aturan penggantian, kontrol folder, & eksekusi
 │   ├── signature_designer_dialog.py # Dialog preview TTD, drag-and-drop canvas, & 3 slider gambar
@@ -48,8 +60,8 @@ d:\docomen_replacer\
 │   ├── dictionary_dialog.py    # Dialog pengelola kamus istilah & kata tak dikenal
 │   └── report_view.py          # Dialog ringkasan eksekutif pasca pemrosesan
 │
-├── services/                   # Layanan Pendukung & Eksternal
-│   ├── pdf_converter.py        # Engine konversi Word ke PDF (Word COM + LibreOffice)
+├── services/                   # Layanan Pendukung
+│   ├── __init__.py
 │   └── report_service.py       # Generator laporan teks atomik ringkas pasca eksekusi
 │
 ├── config/                     # Skema Konfigurasi & Kamus Bawaan
@@ -63,24 +75,37 @@ d:\docomen_replacer\
 │   └── .gitkeep                # Hanya .gitkeep yang di-commit (gambar dilindungi .gitignore)
 │
 ├── tests/                      # Suite Pengujian Otomatis (79 Tests Wajib Lulus)
-│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks
-│   ├── test_signature_library.py # Uji coba pustaka tanda tangan & stempel terpisah
-│   ├── test_signature_multi_image.py # Uji coba penyisipan 3 gambar ke XML Word
-│   ├── test_signature_prediction.py # Uji coba deteksi orientasi & prediksi tanda tangan
-│   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label
-│   ├── test_doc_compat.py      # Uji coba kompatibilitas .doc & fallback LibreOffice
-│   └── test_pdf_converter.py   # Uji coba konverter PDF hermetis
+│   ├── __init__.py
+│   ├── generate_samples.py     # Generator dokumen sampel uji .docx
+│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (17 test)
+│   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label (13 test)
+│   ├── test_dictionary_corpus.py # Uji akurasi deteksi kamus terhadap korpus nyata (13 test)
+│   ├── test_document_predictor.py # Uji coba prediksi field & auto-fill aturan (7 test)
+│   ├── test_doc_compat.py      # Uji coba kompatibilitas .doc & fallback LibreOffice (5 test)
+│   ├── test_pdf_converter.py   # Uji coba konverter PDF hermetis Word COM & LibreOffice (7 test)
+│   ├── test_signature_library.py # Uji coba pustaka tanda tangan & stempel terpisah (6 test)
+│   ├── test_signature_multi_image.py # Uji coba penyisipan 3 gambar ke XML Word (6 test)
+│   └── test_signature_prediction.py # Uji deteksi orientasi & prediksi koordinat TTD (5 test)
 │
 ├── utils/                      # Utilitas Lintas Platform
+│   ├── __init__.py
 │   └── platform.py             # Deteksi OS, ketersediaan MS Word COM, LibreOffice path
 │
-├── README/                     # PANDUAN INI (Untuk AI Agent)
-│   └── readmeAI.md             # Standard Operating Procedure & Knowledge Base
+├── docs/                       # Dokumentasi Internal & Spesifikasi (diabaikan .gitignore)
+│   ├── DESAIN_GUI_REDESIGN.md  # Blueprint spesifikasi desain ulang antarmuka dashboard
+│   └── REVIEW*.md              # Catatan audit arsitektur kode, kepatuhan PII, & mitigasi bug
 │
-├── Jalankan_Smart_RPP_Replacer.bat # Launcher cepat Windows
-├── main.py                     # Entry point eksekusi aplikasi
+├── README/                     # PANDUAN INI (Untuk AI Agent)
+│   └── readmeAI.md             # Standard Operating Procedure & Knowledge Base AI
+│
+├── README.md                   # Dokumentasi publik repositori untuk pengguna umum
+├── PANDUAN_PENGGUNAAN.md       # Panduan operasional non-teknis (diabaikan .gitignore)
+├── LICENSE                     # Lisensi proyek (MIT License)
+├── .gitattributes              # Normalisasi line-ending git (CRLF/LF)
+├── .gitignore                  # Aturan proteksi PII & pengabaian artefak
 ├── requirements.txt            # Dependensi Python minimal (python-docx, Pillow, pywin32)
-└── .gitignore                  # Aturan proteksi PII & pengabaian artefak
+├── Jalankan_Smart_RPP_Replacer.bat # Launcher cepat Windows
+└── main.py                     # Entry point eksekusi aplikasi
 ```
 
 ---
@@ -143,34 +168,34 @@ Setiap agen AI yang bekerja di repositori ini **WAJIB** mematuhi aturan ketat be
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Pengguna / GUI
-    participant RE as ReplacementEngine
-    participant DP as DocumentPredictor / FieldDict
-    participant DW as DocxWriter & Reader
-    participant SS as SignatureImageService
-    participant Disk as File System
+    actor User as Pengguna / GUI (replacement_view.py)
+    participant RE as ReplacementEngine (core/replacement_engine.py)
+    participant DP as DocumentPredictor & FieldDict
+    participant DW as DocxWriter & Reader (document/)
+    participant SS as SignatureImageService (core/)
+    participant Disk as File System (Atomik mkstemp/os.replace)
 
-    User->>RE: scan_and_plan(input_dir, rules, sig_settings)
-    loop Setiap Berkas Word (.docx / .doc)
-        RE->>DW: Ekstraksi struktur paragraf, tabel, & runs
-        RE->>DP: Cocokkan teks dengan aturan (Exact, Regex, Dict, Fuzzy)
-        RE->>RE: Hitung Confidence Level (HIGH / MEDIUM / LOW)
-        RE->>SS: Identifikasi zona & anchor tanda tangan
-    end
+    Note over User,RE: Tahap 1: Analisis & Perencanaan Perubahan
+    User->>RE: plan_document_changes(doc_path, rules, target_dir)
+    RE->>DW: Ekstraksi struktur paragraf, tabel, & runs
+    RE->>DP: Cocokkan teks dengan kamus & deteksi label
+    RE->>RE: Hitung Confidence Level (HIGH / MEDIUM / LOW)
+    RE->>SS: Identifikasi zona & anchor tanda tangan
     RE-->>User: List[ReplacementPlanItem]
 
-    opt Konfirmasi Pratinjau
-        User->>User: Tinjau di IntegratedPreviewDialog (Centang/Batalkan aturan)
+    opt Tahap 2: Konfirmasi Pratinjau Interaktif
+        User->>User: Tinjau di IntegratedPreviewDialog (Pilih / Centang aturan)
     end
 
-    User->>RE: execute_approved_plan(plan_items)
-    loop Terapkan Perubahan
-        RE->>DW: Ganti teks run secara presisi (preservasi gaya)
-        RE->>SS: Sisipkan 3 gambar (Kepala, Guru, Stempel) behind text
-        RE->>Disk: Simpan atomik (mkstemp -> os.replace)
-    end
+    Note over User,RE: Tahap 3: Penerapan Perubahan yang Disetujui
+    User->>RE: apply_approved_changes(approved_items, output_path, ...)
+    RE->>DW: Ganti teks run secara presisi (preservasi gaya)
+    RE->>SS: Sisipkan 3 gambar (Kepala, Guru, Stempel) behind text
+    RE->>Disk: Simpan atomik (mkstemp -> os.replace)
     RE-->>User: Ringkasan Eksekusi & Laporan Sukses
 ```
+
+*(Catatan: Untuk eksekusi langsung satu langkah tanpa pratinjau, tersedia metode `process_file(input_path, output_path, rules, ...)`)*.
 
 ### 4.2 Alur Kamus Istilah (Field Dictionary Schema v2)
 * Konfigurasi bawaan: [config/dictionary.default.json](file:///d:/docomen_replacer/config/dictionary.default.json).
@@ -193,11 +218,16 @@ sequenceDiagram
 
 ### C. Jika Ingin Menambah Aturan Tanda Tangan
 * Baca definisi geometri di [core/signature_image_service.py](file:///d:/docomen_replacer/core/signature_image_service.py).
-* Pengaturan offset koordinat disimpan di `DEFAULT_SETTINGS` dengan kunci:
-  * `offx_cm`, `offy_cm`, `width_cm` (Guru)
-  * `kamad_offx_cm`, `kamad_offy_cm`, `kamad_width_cm` (Kepala)
-  * `stempel_offx_cm`, `stempel_offy_cm`, `stempel_width_cm` (Stempel)
-* Pastikan nilai default tersedia untuk kedua profil: `portrait` dan `landscape`.
+* Pengaturan parameter tanda tangan dan stempel disimpan di kamus konfigurasi `DEFAULT_SETTINGS` dengan kunci terstruktur berikut:
+  * **Kepala**: `enabled_kepala`, `kepala_image_path`, `kepala_name`, `kepala_width_cm`, `offset_x_kepala_cm`, `offset_y_kepala_cm`
+  * **Guru**: `enabled_guru`, `guru_image_path`, `guru_name`, `guru_width_cm`, `offset_x_guru_cm`, `offset_y_guru_cm`
+  * **Stempel**: `enabled_stempel`, `stempel_image_path`, `stempel_name`, `stempel_width_cm`, `offset_x_stempel_cm`, `offset_y_stempel_cm`
+  * **Pengaturan Umum**: `alignment` ("CENTER"), `behind_text` (True), `spacing_before_pt`, `spacing_after_pt`
+  * **Profil Dokumen Mendatar (`landscape`)**: Disimpan di dalam sub-kamus `"landscape"`:
+    * `kepala_width_cm`, `offset_x_kepala_cm`, `offset_y_kepala_cm`
+    * `guru_width_cm`, `offset_x_guru_cm`, `offset_y_guru_cm`
+    * `stempel_width_cm`, `offset_x_stempel_cm`, `offset_y_stempel_cm`
+* Pastikan penambahan fitur baru selalu menyertakan nilai default untuk profil `portrait` dan `landscape`.
 
 ---
 
