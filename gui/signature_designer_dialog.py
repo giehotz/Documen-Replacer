@@ -2,6 +2,7 @@
 Komponen GUI: Jendela Desain & Pengatur Tanda Tangan Digital (Signature Designer).
 Menyediakan:
 - Kontrol slider ukuran (cm), pemilihan berkas gambar, perataan, dan spasi
+- Interaksi Drag-and-Drop langsung pada kanvas pratinjau (geser posisi & tarik sudut untuk ubah ukuran)
 - Pemisahan profil konfigurasi antara Dokumen Potrait (RPP) dan Dokumen Lanskap (Silabus/Promes)
 - Pustaka Tanda Tangan & Stempel Bernama (Named Signature Library di folder signatures/)
 - Dukungan 3 slot gambar terpisah: Tanda Tangan Kepala, Tanda Tangan Guru, dan Stempel Resmi Sekolah
@@ -49,6 +50,16 @@ class SignatureDesignerDialog(tk.Toplevel):
 
     def _init_variables(self):
         self.current_orientation = "PORTRAIT"
+
+        # Variabel Drag & Drop Interaktif Kanvas
+        self._selected_target = None   # 'kepala' | 'guru' | 'stempel' | None
+        self._drag_mode = None         # 'move' | 'resize' | None
+        self._drag_start_x = 0
+        self._drag_start_y = 0
+        self._drag_start_offx = 0.0
+        self._drag_start_offy = 0.0
+        self._drag_start_width = 3.5
+        self._element_boxes = {}
 
         # 1. Tanda Tangan Kepala
         self.enable_kepala_var = tk.BooleanVar(value=self.settings.get("enabled_kepala", False))
@@ -138,7 +149,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         ).pack(anchor="w")
         ttk.Label(
             head_left,
-            text="Simpan pustaka tanda tangan personil & stempel sekolah. Sistem otomatis menyesuaikan kolom Potrait (RPP) vs Lanskap (Silabus).",
+            text="Tanda tangan & stempel dapat digeser (drag) atau ditarik sudutnya langsung pada pratinjau dokumen, atau menggunakan slider presisi.",
             foreground="#555555"
         ).pack(anchor="w", pady=(2, 0))
 
@@ -297,7 +308,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         self._build_slider_row(frame_guru, "Geser Y (▲ ▼):", "guru", "offy", self.offy_guru_var, -5.0, 5.0)
 
         # =====================================================================
-        # SEKSI 3: STEMPEL RESMI SEKOLAH / MADRASAH (BARU)
+        # SEKSI 3: STEMPEL RESMI SEKOLAH / MADRASAH
         # =====================================================================
         frame_stempel = ttk.LabelFrame(left_frame, text=" 3. Stempel Resmi Sekolah / Madrasah (Zona Kepala) ", padding=6)
         frame_stempel.pack(fill="x", pady=4)
@@ -359,16 +370,30 @@ class SignatureDesignerDialog(tk.Toplevel):
         ).pack(side="left")
 
         # =====================================================================
-        # PANEL KANAN: KANVAS SIMULASI REAL-TIME
+        # PANEL KANAN: KANVAS SIMULASI DENGAN DUKUNGAN DRAG-AND-DROP
         # =====================================================================
-        right_frame = ttk.LabelFrame(container, text=" Simulasi Tampilan Dokumen Word (Live Preview) ", padding=8)
+        right_frame = ttk.LabelFrame(container, text=" Simulasi Dokumen Word (Live Preview & Drag-and-Drop) ", padding=8)
         right_frame.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
         right_frame.columnconfigure(0, weight=1)
         right_frame.rowconfigure(0, weight=1)
 
         self.canvas = tk.Canvas(right_frame, bg="#ffffff", highlightthickness=1, highlightbackground="#cccccc")
         self.canvas.grid(row=0, column=0, sticky="nsew")
+
+        # Event Bindings Drag and Drop & Resize di Kanvas
         self.canvas.bind("<Configure>", lambda e: self._update_preview())
+        self.canvas.bind("<ButtonPress-1>", self._on_canvas_press)
+        self.canvas.bind("<B1-Motion>", self._on_canvas_drag)
+        self.canvas.bind("<ButtonRelease-1>", self._on_canvas_release)
+        self.canvas.bind("<Motion>", self._on_canvas_motion)
+        self.canvas.bind("<MouseWheel>", self._on_canvas_mousewheel)
+
+        ttk.Label(
+            right_frame,
+            text="💡 Tips: Klik & seret (drag) gambar untuk menggeser posisi. Tarik kotak biru di sudut kanan-bawah atau Scroll Mouse untuk mengubah ukuran.",
+            font=("Segoe UI", 8),
+            foreground="#555555"
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
         # 3. Tombol Aksi Bawah
         bottom = ttk.Frame(self, padding=(14, 8))
@@ -390,7 +415,6 @@ class SignatureDesignerDialog(tk.Toplevel):
         lbl_val = ttk.Label(row, text=f"{var.get():.1f} cm" if param == "width" else self._fmt_offset(var.get()), width=8, anchor="e")
         lbl_val.pack(side="right")
 
-        # Simpan referensi label nilai
         attr_name = f"lbl_{param}_{target}"
         setattr(self, attr_name, lbl_val)
 
@@ -408,6 +432,149 @@ class SignatureDesignerDialog(tk.Toplevel):
         return f"{sign}{v:.1f} cm"
 
     # =========================================================================
+    # INTERAKSI DRAG & DROP SERTA RESIZE DI KANVAS
+    # =========================================================================
+    def _on_canvas_press(self, event):
+        x, y = event.x, event.y
+
+        # 1. Cek apakah klik pada sudut resize handle dari elemen yang sedang dipilih
+        if self._selected_target:
+            info = self._element_boxes.get(self._selected_target)
+            if info and info["enabled"]:
+                hx, hy = info["handle"]
+                if abs(x - hx) <= 8 and abs(y - hy) <= 8:
+                    self._drag_mode = "resize"
+                    self._drag_start_x = x
+                    self._drag_start_y = y
+                    self._drag_start_width = getattr(self, f"width_{self._selected_target}_var").get()
+                    return
+
+        # 2. Cek apakah klik di dalam bounding box gambar
+        # Urutan prioritas: target terpilih dulu, stempel (karena kecil/menimpa), kepala, guru
+        candidates = []
+        if self._selected_target:
+            candidates.append(self._selected_target)
+        for cat in ("stempel", "kepala", "guru"):
+            if cat not in candidates:
+                candidates.append(cat)
+
+        clicked_target = None
+        for cat in candidates:
+            info = self._element_boxes.get(cat)
+            if not info or not info["enabled"]:
+                continue
+            bx1, by1, bx2, by2 = info["bbox"]
+            if bx1 <= x <= bx2 and by1 <= y <= by2:
+                clicked_target = cat
+                break
+
+        if clicked_target:
+            self._selected_target = clicked_target
+            self._drag_mode = "move"
+            self._drag_start_x = x
+            self._drag_start_y = y
+            self._drag_start_offx = getattr(self, f"offx_{clicked_target}_var").get()
+            self._drag_start_offy = getattr(self, f"offy_{clicked_target}_var").get()
+        else:
+            self._selected_target = None
+            self._drag_mode = None
+
+        self._update_preview()
+
+    def _on_canvas_drag(self, event):
+        if not self._selected_target or not self._drag_mode:
+            return
+
+        tgt = self._selected_target
+        px_per_cm = 28.0
+
+        if self._drag_mode == "move":
+            dx_px = event.x - self._drag_start_x
+            dy_px = event.y - self._drag_start_y
+
+            new_offx = round(self._drag_start_offx + (dx_px / px_per_cm), 1)
+            new_offy = round(self._drag_start_offy + (dy_px / px_per_cm), 1)
+
+            # Batasi dalam rentang slider [-8.0, 8.0] dan [-5.0, 5.0]
+            new_offx = max(-8.0, min(8.0, new_offx))
+            new_offy = max(-5.0, min(5.0, new_offy))
+
+            getattr(self, f"offx_{tgt}_var").set(new_offx)
+            getattr(self, f"offy_{tgt}_var").set(new_offy)
+
+            lbl_x = getattr(self, f"lbl_offx_{tgt}", None)
+            if lbl_x:
+                lbl_x.config(text=self._fmt_offset(new_offx))
+            lbl_y = getattr(self, f"lbl_offy_{tgt}", None)
+            if lbl_y:
+                lbl_y.config(text=self._fmt_offset(new_offy))
+
+            active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+            active_geo[f"offx_{tgt}"] = new_offx
+            active_geo[f"offy_{tgt}"] = new_offy
+
+            self._update_preview()
+
+        elif self._drag_mode == "resize":
+            dx_px = event.x - self._drag_start_x
+            new_w = round(self._drag_start_width + (dx_px * 2.0 / px_per_cm), 1)
+            new_w = max(2.0, min(6.5, new_w))
+
+            getattr(self, f"width_{tgt}_var").set(new_w)
+            lbl_w = getattr(self, f"lbl_width_{tgt}", None)
+            if lbl_w:
+                lbl_w.config(text=f"{new_w:.1f} cm")
+
+            active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+            active_geo[f"width_{tgt}"] = new_w
+
+            self._update_preview()
+
+    def _on_canvas_release(self, event):
+        self._drag_mode = None
+        self._update_preview()
+
+    def _on_canvas_motion(self, event):
+        x, y = event.x, event.y
+        # Hover di handle resize
+        if self._selected_target:
+            info = self._element_boxes.get(self._selected_target)
+            if info and info["enabled"]:
+                hx, hy = info["handle"]
+                if abs(x - hx) <= 8 and abs(y - hy) <= 8:
+                    self.canvas.config(cursor="size_nw_se")
+                    return
+
+        # Hover di gambar
+        for cat in ("stempel", "kepala", "guru"):
+            info = self._element_boxes.get(cat)
+            if info and info["enabled"]:
+                bx1, by1, bx2, by2 = info["bbox"]
+                if bx1 <= x <= bx2 and by1 <= y <= by2:
+                    self.canvas.config(cursor="fleur")
+                    return
+
+        self.canvas.config(cursor="")
+
+    def _on_canvas_mousewheel(self, event):
+        """Scroll mouse untuk memperbesar / memperkecil elemen yang sedang aktif."""
+        if not self._selected_target:
+            return
+        tgt = self._selected_target
+        delta = 0.1 if event.delta > 0 else -0.1
+        cur_w = getattr(self, f"width_{tgt}_var").get()
+        new_w = round(max(2.0, min(6.5, cur_w + delta)), 1)
+
+        getattr(self, f"width_{tgt}_var").set(new_w)
+        lbl_w = getattr(self, f"lbl_width_{tgt}", None)
+        if lbl_w:
+            lbl_w.config(text=f"{new_w:.1f} cm")
+
+        active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_geo[f"width_{tgt}"] = new_w
+        self._update_preview()
+
+    # =========================================================================
     # PUSTAKA TANDA TANGAN & STEMPEL (LIBRARY MANAGEMENT)
     # =========================================================================
     def _refresh_library_comboboxes(self):
@@ -421,7 +588,6 @@ class SignatureDesignerDialog(tk.Toplevel):
         self._lib_items_kepala = items_k
         self.cb_kepala["values"] = vals_k
 
-        # Sinkronkan pilihan saat ini jika cocok
         cur_p_k = self.path_kepala_var.get()
         idx_k = 0
         for i, it in enumerate(items_k, 1):
@@ -481,6 +647,7 @@ class SignatureDesignerDialog(tk.Toplevel):
                 self.name_stempel_var.set(target.get("name", ""))
                 self.enable_stempel_var.set(True)
 
+        self._selected_target = category
         self._update_preview()
 
     def _add_signature_dialog(self, category: str):
@@ -546,7 +713,6 @@ class SignatureDesignerDialog(tk.Toplevel):
                 dlg.destroy()
                 self._refresh_library_comboboxes()
 
-                # Otomatis pilih item baru
                 if category == "kepala":
                     self.path_kepala_var.set(item["path"])
                     self.name_kepala_var.set(item["name"])
@@ -560,6 +726,7 @@ class SignatureDesignerDialog(tk.Toplevel):
                     self.name_stempel_var.set(item["name"])
                     self.enable_stempel_var.set(True)
 
+                self._selected_target = category
                 self._refresh_library_comboboxes()
                 self._update_preview()
                 messagebox.showinfo("Berhasil", f"'{nm}' berhasil disimpan ke folder signatures/!", parent=self)
@@ -600,6 +767,9 @@ class SignatureDesignerDialog(tk.Toplevel):
                 self.path_stempel_var.set("")
                 self.name_stempel_var.set("")
 
+            if self._selected_target == category:
+                self._selected_target = None
+
             self._refresh_library_comboboxes()
             self._update_preview()
             messagebox.showinfo("Berhasil", f"'{t_name}' berhasil dihapus.", parent=self)
@@ -622,7 +792,6 @@ class SignatureDesignerDialog(tk.Toplevel):
             messagebox.showerror("Error Analisis", f"Gagal menganalisis dokumen: {e}", parent=self)
             return
 
-        # Tampilkan Jendela Dialog Hasil Prediksi
         res_dlg = tk.Toplevel(self)
         res_dlg.title("Hasil Prediksi & Deteksi Letak Tanda Tangan Dokumen")
         res_dlg.geometry("520x460")
@@ -679,7 +848,6 @@ class SignatureDesignerDialog(tk.Toplevel):
             target_mode = "LANDSCAPE" if res["is_landscape"] else "PORTRAIT"
             self._switch_orientation(target_mode)
 
-            # Terapkan rekomendasi ke slider
             self.width_kepala_var.set(recs["kepala_width_cm"])
             self.offx_kepala_var.set(recs["offset_x_kepala_cm"])
             self.offy_kepala_var.set(recs["offset_y_kepala_cm"])
@@ -692,7 +860,6 @@ class SignatureDesignerDialog(tk.Toplevel):
             self.offx_stempel_var.set(recs["offset_x_stempel_cm"])
             self.offy_stempel_var.set(recs["offset_y_stempel_cm"])
 
-            # Perbarui label
             self.lbl_width_kepala.config(text=f"{recs['kepala_width_cm']:.1f} cm")
             self.lbl_offx_kepala.config(text=self._fmt_offset(recs['offset_x_kepala_cm']))
             self.lbl_offy_kepala.config(text=self._fmt_offset(recs['offset_y_kepala_cm']))
@@ -719,7 +886,6 @@ class SignatureDesignerDialog(tk.Toplevel):
         if target_mode == self.current_orientation:
             return
 
-        # 1. Simpan nilai aktif saat ini ke dictionary profil
         active_dict = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
         active_dict["width_kepala"] = round(self.width_kepala_var.get(), 1)
         active_dict["offx_kepala"] = round(self.offx_kepala_var.get(), 1)
@@ -731,11 +897,9 @@ class SignatureDesignerDialog(tk.Toplevel):
         active_dict["offx_stempel"] = round(self.offx_stempel_var.get(), 1)
         active_dict["offy_stempel"] = round(self.offy_stempel_var.get(), 1)
 
-        # 2. Beralih mode orientasi
         self.current_orientation = target_mode
         new_dict = self.portrait_geo if target_mode == "PORTRAIT" else self.landscape_geo
 
-        # 3. Muat nilai profil ke variabel Tk
         self.width_kepala_var.set(new_dict["width_kepala"])
         self.offx_kepala_var.set(new_dict["offx_kepala"])
         self.offy_kepala_var.set(new_dict["offy_kepala"])
@@ -746,7 +910,6 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.offx_stempel_var.set(new_dict["offx_stempel"])
         self.offy_stempel_var.set(new_dict["offy_stempel"])
 
-        # 4. Perbarui label slider
         self.lbl_width_kepala.config(text=f"{new_dict['width_kepala']:.1f} cm")
         self.lbl_offx_kepala.config(text=self._fmt_offset(new_dict['offx_kepala']))
         self.lbl_offy_kepala.config(text=self._fmt_offset(new_dict['offy_kepala']))
@@ -757,7 +920,6 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.lbl_offx_stempel.config(text=self._fmt_offset(new_dict['offx_stempel']))
         self.lbl_offy_stempel.config(text=self._fmt_offset(new_dict['offy_stempel']))
 
-        # 5. Perbarui gaya tombol tab
         if target_mode == "PORTRAIT":
             self.btn_tab_portrait.config(bg="#0066cc", fg="#ffffff", font=("Segoe UI", 9, "bold"))
             self.btn_tab_landscape.config(bg="#f0f0f0", fg="#222222", font=("Segoe UI", 9))
@@ -802,6 +964,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         if f:
             self.path_kepala_var.set(os.path.normpath(f))
             self.enable_kepala_var.set(True)
+            self._selected_target = "kepala"
             self._update_preview()
 
     def _browse_guru(self):
@@ -812,6 +975,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         if f:
             self.path_guru_var.set(os.path.normpath(f))
             self.enable_guru_var.set(True)
+            self._selected_target = "guru"
             self._update_preview()
 
     def _browse_stempel(self):
@@ -822,6 +986,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         if f:
             self.path_stempel_var.set(os.path.normpath(f))
             self.enable_stempel_var.set(True)
+            self._selected_target = "stempel"
             self._update_preview()
 
     def _on_slider_changed(self, target: str, param: str, val: str):
@@ -829,17 +994,23 @@ class SignatureDesignerDialog(tk.Toplevel):
         lbl = getattr(self, f"lbl_{param}_{target}", None)
         if lbl:
             lbl.config(text=f"{v:.1f} cm" if param == "width" else self._fmt_offset(v))
+
+        active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_geo[f"{param}_{target}"] = v
+
+        self._selected_target = target
         self._update_preview()
 
     def _on_control_changed(self):
         self._update_preview()
 
     # =========================================================================
-    # RENDER SIMULASI KANVAS WORD (LIVE PREVIEW)
+    # RENDER SIMULASI KANVAS WORD (LIVE PREVIEW & DRAG-AND-DROP HANDLES)
     # =========================================================================
     def _update_preview(self):
         self.canvas.delete("all")
         self._photo_cache.clear()
+        self._element_boxes.clear()
 
         w = self.canvas.winfo_width()
         h = self.canvas.winfo_height()
@@ -857,14 +1028,14 @@ class SignatureDesignerDialog(tk.Toplevel):
         x_kepala_center = col_w * 0.5
         x_guru_center = col_w * 1.5
 
-        # Garis pemisah kolom
+        # Garis pemisah kolom tabel
         self.canvas.create_line(col_w, 28, col_w, h - 15, fill="#eeeeee", dash=(4, 4))
 
         y_name_k = 205
         y_name_g = 205
         base_shift_px = int(2.3 * px_per_cm) if is_land else 0
 
-        # Koordinat TTD Kepala
+        # 1. Hitung Geometri TTD Kepala
         k_path = self.path_kepala_var.get().strip()
         k_enabled = self.enable_kepala_var.get()
         k_width_cm = self.width_kepala_var.get()
@@ -873,7 +1044,26 @@ class SignatureDesignerDialog(tk.Toplevel):
         x_img_k = base_x_k + base_shift_px + int(self.offx_kepala_var.get() * px_per_cm)
         y_img_k = (y_name_k - 35) + int(self.offy_kepala_var.get() * px_per_cm)
 
-        # Koordinat Stempel Resmi (Zona Kepala)
+        k_aspect = 0.5
+        if k_enabled and k_path and os.path.isfile(k_path):
+            try:
+                with Image.open(k_path) as im:
+                    k_aspect = im.height / max(1, im.width)
+            except Exception:
+                pass
+        k_height_px = max(24, int(k_target_px * k_aspect))
+        box_k = (x_img_k - k_target_px // 2, y_img_k - k_height_px // 2, x_img_k + k_target_px // 2, y_img_k + k_height_px // 2)
+        self._element_boxes["kepala"] = {
+            "enabled": k_enabled,
+            "bbox": box_k,
+            "center": (x_img_k, y_img_k),
+            "handle": (box_k[2], box_k[3]),
+            "width_cm": k_width_cm,
+            "color": "#0078d7",
+            "title": "TTD Kepala"
+        }
+
+        # 2. Hitung Geometri Stempel Resmi (Zona Kepala)
         s_path = self.path_stempel_var.get().strip()
         s_enabled = self.enable_stempel_var.get()
         s_width_cm = self.width_stempel_var.get()
@@ -882,7 +1072,26 @@ class SignatureDesignerDialog(tk.Toplevel):
         x_img_s = base_x_s + base_shift_px + int(self.offx_stempel_var.get() * px_per_cm)
         y_img_s = (y_name_k - 35) + int(self.offy_stempel_var.get() * px_per_cm)
 
-        # Koordinat TTD Guru
+        s_aspect = 1.0
+        if s_enabled and s_path and os.path.isfile(s_path):
+            try:
+                with Image.open(s_path) as im:
+                    s_aspect = im.height / max(1, im.width)
+            except Exception:
+                pass
+        s_height_px = max(24, int(s_target_px * s_aspect))
+        box_s = (x_img_s - s_target_px // 2, y_img_s - s_height_px // 2, x_img_s + s_target_px // 2, y_img_s + s_height_px // 2)
+        self._element_boxes["stempel"] = {
+            "enabled": s_enabled,
+            "bbox": box_s,
+            "center": (x_img_s, y_img_s),
+            "handle": (box_s[2], box_s[3]),
+            "width_cm": s_width_cm,
+            "color": "#9933cc",
+            "title": "Stempel Resmi"
+        }
+
+        # 3. Hitung Geometri TTD Guru
         g_path = self.path_guru_var.get().strip()
         g_enabled = self.enable_guru_var.get()
         g_width_cm = self.width_guru_var.get()
@@ -891,15 +1100,32 @@ class SignatureDesignerDialog(tk.Toplevel):
         x_img_g = base_x_g + base_shift_px + int(self.offx_guru_var.get() * px_per_cm)
         y_img_g = (y_name_g - 35) + int(self.offy_guru_var.get() * px_per_cm)
 
+        g_aspect = 0.5
+        if g_enabled and g_path and os.path.isfile(g_path):
+            try:
+                with Image.open(g_path) as im:
+                    g_aspect = im.height / max(1, im.width)
+            except Exception:
+                pass
+        g_height_px = max(24, int(g_target_px * g_aspect))
+        box_g = (x_img_g - g_target_px // 2, y_img_g - g_height_px // 2, x_img_g + g_target_px // 2, y_img_g + g_height_px // 2)
+        self._element_boxes["guru"] = {
+            "enabled": g_enabled,
+            "bbox": box_g,
+            "center": (x_img_g, y_img_g),
+            "handle": (box_g[2], box_g[3]),
+            "width_cm": g_width_cm,
+            "color": "#2e7d32",
+            "title": "TTD Guru"
+        }
+
         behind = self.behind_text_var.get()
 
         def draw_images():
-            # 1. Gambar TTD Kepala
+            # A. Gambar TTD Kepala
             if k_enabled and k_path and os.path.isfile(k_path):
                 try:
                     pil_img = Image.open(k_path)
-                    aspect = pil_img.height / max(1, pil_img.width)
-                    k_height_px = max(20, int(k_target_px * aspect))
                     resized = pil_img.resize((k_target_px, k_height_px), Image.Resampling.LANCZOS)
                     tk_img = ImageTk.PhotoImage(resized)
                     self._photo_cache["kepala"] = tk_img
@@ -908,18 +1134,15 @@ class SignatureDesignerDialog(tk.Toplevel):
                     self.canvas.create_text(x_img_k, y_img_k, text="[Gambar Error]", fill="#cc0000")
             elif k_enabled:
                 self.canvas.create_rectangle(
-                    x_img_k - k_target_px // 2, y_img_k - 25,
-                    x_img_k + k_target_px // 2, y_img_k + 25,
+                    box_k[0], box_k[1], box_k[2], box_k[3],
                     outline="#dddddd", fill="#fafafa", dash=(2, 2)
                 )
                 self.canvas.create_text(x_img_k, y_img_k, text="(TTD Kepala)", font=("Segoe UI", 8), fill="#aaaaaa")
 
-            # 2. Gambar Stempel Resmi Sekolah
+            # B. Gambar Stempel Resmi Sekolah
             if s_enabled and s_path and os.path.isfile(s_path):
                 try:
                     pil_s = Image.open(s_path)
-                    aspect_s = pil_s.height / max(1, pil_s.width)
-                    s_height_px = max(20, int(s_target_px * aspect_s))
                     resized_s = pil_s.resize((s_target_px, s_height_px), Image.Resampling.LANCZOS)
                     tk_s = ImageTk.PhotoImage(resized_s)
                     self._photo_cache["stempel"] = tk_s
@@ -927,7 +1150,6 @@ class SignatureDesignerDialog(tk.Toplevel):
                 except Exception:
                     self.canvas.create_text(x_img_s, y_img_s, text="[Stempel Error]", fill="#cc0000")
             elif s_enabled:
-                # Gambaran visual stempel transparan berwarna ungu kedinasan
                 r = s_target_px // 2
                 self.canvas.create_oval(
                     x_img_s - r, y_img_s - r,
@@ -936,12 +1158,10 @@ class SignatureDesignerDialog(tk.Toplevel):
                 )
                 self.canvas.create_text(x_img_s, y_img_s, text="[ Stempel Resmi ]", font=("Segoe UI", 8, "bold"), fill="#8833aa")
 
-            # 3. Gambar TTD Guru
+            # C. Gambar TTD Guru
             if g_enabled and g_path and os.path.isfile(g_path):
                 try:
                     pil_g = Image.open(g_path)
-                    aspect_g = pil_g.height / max(1, pil_g.width)
-                    g_height_px = max(20, int(g_target_px * aspect_g))
                     resized_g = pil_g.resize((g_target_px, g_height_px), Image.Resampling.LANCZOS)
                     tk_img_g = ImageTk.PhotoImage(resized_g)
                     self._photo_cache["guru"] = tk_img_g
@@ -950,8 +1170,7 @@ class SignatureDesignerDialog(tk.Toplevel):
                     self.canvas.create_text(x_img_g, y_img_g, text="[Gambar Error]", fill="#cc0000")
             elif g_enabled:
                 self.canvas.create_rectangle(
-                    x_img_g - g_target_px // 2, y_img_g - 25,
-                    x_img_g + g_target_px // 2, y_img_g + 25,
+                    box_g[0], box_g[1], box_g[2], box_g[3],
                     outline="#dddddd", fill="#fafafa", dash=(2, 2)
                 )
                 self.canvas.create_text(x_img_g, y_img_g, text="(TTD Guru)", font=("Segoe UI", 8), fill="#aaaaaa")
@@ -971,12 +1190,43 @@ class SignatureDesignerDialog(tk.Toplevel):
             self.canvas.create_text(x_guru_center, y_name_g, text=f"( {name_g_disp} )", font=("Segoe UI", 9, "bold", "underline"), fill="#111111")
             self.canvas.create_text(x_guru_center, y_name_g + 20, text="NIP. 199001012020012002", font=("Segoe UI", 9), fill="#333333")
 
+        def draw_selection_handles():
+            # Gambarkan Bounding Box interaktif & Handle Resize untuk elemen yang sedang dipilih/aktif
+            if not self._selected_target:
+                return
+
+            info = self._element_boxes.get(self._selected_target)
+            if not info or not info["enabled"]:
+                return
+
+            bx1, by1, bx2, by2 = info["bbox"]
+            clr = info["color"]
+
+            # Garis putus-putus penanda seleksi
+            self.canvas.create_rectangle(bx1 - 2, by1 - 2, bx2 + 2, by2 + 2, outline=clr, dash=(4, 3), width=2)
+
+            # 4 Sudut titik penanda
+            h_rad = 3
+            for cx, cy in [(bx1 - 2, by1 - 2), (bx2 + 2, by1 - 2), (bx1 - 2, by2 + 2)]:
+                self.canvas.create_rectangle(cx - h_rad, cy - h_rad, cx + h_rad, cy + h_rad, outline=clr, fill="#ffffff", width=1)
+
+            # Titik sudut kanan-bawah utama untuk Resize Drag
+            hx, hy = info["handle"]
+            self.canvas.create_rectangle(hx - 2, hy - 2, hx + 6, hy + 6, outline="#ffffff", fill=clr, width=1)
+
+            # Badge info ukuran & geser
+            self.canvas.create_rectangle(bx1 - 2, by1 - 20, bx1 + 130, by1 - 3, fill=clr, outline=clr)
+            badge_text = f"{info['title']}: {info['width_cm']:.1f}cm"
+            self.canvas.create_text(bx1 + 4, by1 - 12, text=badge_text, font=("Segoe UI", 8, "bold"), fill="#ffffff", anchor="w")
+
         if behind:
             draw_images()
             draw_texts()
         else:
             draw_texts()
             draw_images()
+
+        draw_selection_handles()
 
     def _calc_align_x(self, center_x: float, left_bound: float, right_bound: float, img_w: int) -> float:
         align = self.alignment_var.get().upper()
@@ -1032,6 +1282,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.lbl_offx_stempel.config(text=self._fmt_offset(active["offx_stempel"]))
         self.lbl_offy_stempel.config(text=self._fmt_offset(active["offy_stempel"]))
 
+        self._selected_target = None
         self._refresh_library_comboboxes()
         self._update_preview()
 

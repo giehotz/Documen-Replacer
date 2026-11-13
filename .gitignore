@@ -45,3 +45,8 @@ config/*.json
 !config/preset_example.json
 !config/dictionary.default.json
 !config/dictionary.user.example.json
+
+# --- Signatures Library (PII Protection) ---
+signatures/*
+!signatures/.gitkeep
+
