@@ -6,7 +6,7 @@ dan menangkap salah ketik (typo) pada label dokumen tanpa ketergantungan ekstern
 from typing import Dict, List, Optional, Tuple
 import difflib
 
-from core.label_recognizer import normalize_string
+from core.text_norm import normalize_string
 
 
 def calculate_similarity(s1: str, s2: str) -> float:

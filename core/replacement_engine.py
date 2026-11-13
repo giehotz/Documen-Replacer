@@ -47,6 +47,80 @@ from document.paragraph_processor import (
 logger = logging.getLogger(__name__)
 
 
+def _insert_signature_image_into_cell(
+    cell,
+    p_idx: int,
+    role: str,
+    sig_cfg: Dict[str, Any],
+    t_idx: int = 0,
+    category: str = "",
+) -> bool:
+    """
+    Menyisipkan gambar tanda tangan dan/atau stempel digital ke dalam sel tabel Word.
+    Mengembalikan True jika setidaknya ada satu gambar yang berhasil disisipkan.
+    """
+    if not sig_cfg:
+        return False
+
+    is_k = (role == "KEPALA")
+    en = sig_cfg.get("enabled_kepala" if is_k else "enabled_guru", False)
+    img_p = sig_cfg.get("kepala_image_path" if is_k else "guru_image_path", "")
+    en_s = is_k and sig_cfg.get("enabled_stempel", False)
+    img_s = sig_cfg.get("stempel_image_path", "") if is_k else ""
+
+    if not ((en and img_p and os.path.isfile(img_p)) or (en_s and img_s and os.path.isfile(img_s))):
+        return False
+
+    try:
+        from core.signature_image_service import insert_signature_picture
+        al = sig_cfg.get("alignment", "CENTER")
+        sb = int(sig_cfg.get("spacing_before_pt", 2))
+        sa = int(sig_cfg.get("spacing_after_pt", 2))
+        behind = bool(sig_cfg.get("behind_text", True))
+        c_w = cell.width
+
+        if behind:
+            p_target = cell.paragraphs[p_idx]
+        else:
+            p_target = None
+            for prev_i in range(p_idx):
+                if not cell.paragraphs[prev_i].text.strip():
+                    p_target = cell.paragraphs[prev_i]
+                    break
+            if p_target is None:
+                p_target = cell.paragraphs[p_idx].insert_paragraph_before()
+
+        inserted_any = False
+        if en and img_p and os.path.isfile(img_p):
+            w_cm = float(sig_cfg.get("kepala_width_cm" if is_k else "guru_width_cm", 3.5))
+            off_x = float(sig_cfg.get("offset_x_kepala_cm" if is_k else "offset_x_guru_cm", 0.0))
+            off_y = float(sig_cfg.get("offset_y_kepala_cm" if is_k else "offset_y_guru_cm", 0.0))
+            if insert_signature_picture(
+                p_target, img_p, width_cm=w_cm, alignment=al,
+                spacing_before_pt=sb, spacing_after_pt=sa,
+                behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y,
+                cell_width_emu=c_w
+            ):
+                inserted_any = True
+
+        if en_s and img_s and os.path.isfile(img_s):
+            w_s = float(sig_cfg.get("stempel_width_cm", 3.5))
+            off_x_s = float(sig_cfg.get("offset_x_stempel_cm", -1.5))
+            off_y_s = float(sig_cfg.get("offset_y_stempel_cm", 0.0))
+            if insert_signature_picture(
+                p_target, img_s, width_cm=w_s, alignment=al,
+                spacing_before_pt=sb, spacing_after_pt=sa,
+                behind_text=behind, offset_x_cm=off_x_s, offset_y_cm=off_y_s,
+                cell_width_emu=c_w
+            ):
+                inserted_any = True
+
+        return inserted_any
+    except Exception as e:
+        logger.warning("Gagal menyisipkan TTD/Stempel (%s) pada tabel #%s: %s", category or role, t_idx, e, exc_info=True)
+        return False
+
+
 class ReplacementEngine:
     def __init__(
         self,
@@ -590,6 +664,9 @@ class ReplacementEngine:
                 else:
                     continue
 
+                if cells[0]._tc == cells[target_col]._tc:
+                    continue
+
                 p0_non_empty = [(idx, p.text.strip(), p) for idx, p in enumerate(cells[0].paragraphs) if p.text.strip()]
                 pt_non_empty = [(idx, p.text.strip(), p) for idx, p in enumerate(cells[target_col].paragraphs) if p.text.strip()]
 
@@ -979,55 +1056,10 @@ class ReplacementEngine:
 
                             # Jika item ini adalah Nama Kepala atau Nama Guru, dan tanda tangan digital/stempel aktif:
                             if sig_cfg and item.category in ("Nama Kepala", "Nama Guru"):
-                                is_k = (item.category == "Nama Kepala")
-                                en = sig_cfg.get("enabled_kepala" if is_k else "enabled_guru", False)
-                                img_p = sig_cfg.get("kepala_image_path" if is_k else "guru_image_path", "")
-                                en_s = is_k and sig_cfg.get("enabled_stempel", False)
-                                img_s = sig_cfg.get("stempel_image_path", "") if is_k else ""
-
-                                if (en and img_p and os.path.isfile(img_p)) or (en_s and img_s and os.path.isfile(img_s)):
-                                    try:
-                                        from core.signature_image_service import insert_signature_picture
-                                        al = sig_cfg.get("alignment", "CENTER")
-                                        sb = int(sig_cfg.get("spacing_before_pt", 2))
-                                        sa = int(sig_cfg.get("spacing_after_pt", 2))
-                                        behind = bool(sig_cfg.get("behind_text", True))
-                                        c_w = cell.width
-
-                                        if behind:
-                                            p_target = cell.paragraphs[p_idx]
-                                        else:
-                                            p_target = None
-                                            for prev_i in range(p_idx):
-                                                if not cell.paragraphs[prev_i].text.strip():
-                                                    p_target = cell.paragraphs[prev_i]
-                                                    break
-                                            if p_target is None:
-                                                p_target = cell.paragraphs[p_idx].insert_paragraph_before()
-
-                                        if en and img_p and os.path.isfile(img_p):
-                                            w_cm = float(sig_cfg.get("kepala_width_cm" if is_k else "guru_width_cm", 3.5))
-                                            off_x = float(sig_cfg.get("offset_x_kepala_cm" if is_k else "offset_x_guru_cm", 0.0))
-                                            off_y = float(sig_cfg.get("offset_y_kepala_cm" if is_k else "offset_y_guru_cm", 0.0))
-                                            insert_signature_picture(
-                                                p_target, img_p, width_cm=w_cm, alignment=al,
-                                                spacing_before_pt=sb, spacing_after_pt=sa,
-                                                behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y,
-                                                cell_width_emu=c_w
-                                            )
-
-                                        if en_s and img_s and os.path.isfile(img_s):
-                                            w_s = float(sig_cfg.get("stempel_width_cm", 3.5))
-                                            off_x_s = float(sig_cfg.get("offset_x_stempel_cm", -1.5))
-                                            off_y_s = float(sig_cfg.get("offset_y_stempel_cm", 0.0))
-                                            insert_signature_picture(
-                                                p_target, img_s, width_cm=w_s, alignment=al,
-                                                spacing_before_pt=sb, spacing_after_pt=sa,
-                                                behind_text=behind, offset_x_cm=off_x_s, offset_y_cm=off_y_s,
-                                                cell_width_emu=c_w
-                                            )
-                                    except Exception as e:
-                                        logger.warning("Gagal menyisipkan TTD/Stempel (%s) pada tabel #%s: %s", item.category, t_idx, e, exc_info=True)
+                                role = "KEPALA" if item.category == "Nama Kepala" else "GURU"
+                                _insert_signature_image_into_cell(
+                                    cell, p_idx, role, sig_cfg, t_idx=t_idx, category=item.category
+                                )
 
             elif t_type == "INSERT_SIGNATURE_TABLE":
                 t_idx = meta.get("table_idx", 0)
@@ -1040,61 +1072,10 @@ class ReplacementEngine:
                     if r_idx < len(table.rows) and c_idx < len(table.rows[r_idx].cells):
                         cell = table.rows[r_idx].cells[c_idx]
                         if p_idx < len(cell.paragraphs):
-                            is_k = (role == "KEPALA")
-                            en = sig_cfg.get("enabled_kepala" if is_k else "enabled_guru", False)
-                            img_p = sig_cfg.get("kepala_image_path" if is_k else "guru_image_path", "")
-                            en_s = is_k and sig_cfg.get("enabled_stempel", False)
-                            img_s = sig_cfg.get("stempel_image_path", "") if is_k else ""
-
-                            if (en and img_p and os.path.isfile(img_p)) or (en_s and img_s and os.path.isfile(img_s)):
-                                try:
-                                    from core.signature_image_service import insert_signature_picture
-                                    al = sig_cfg.get("alignment", "CENTER")
-                                    sb = int(sig_cfg.get("spacing_before_pt", 2))
-                                    sa = int(sig_cfg.get("spacing_after_pt", 2))
-                                    behind = bool(sig_cfg.get("behind_text", True))
-                                    c_w = cell.width
-
-                                    if behind:
-                                        p_target = cell.paragraphs[p_idx]
-                                    else:
-                                        p_target = None
-                                        for prev_i in range(p_idx):
-                                            if not cell.paragraphs[prev_i].text.strip():
-                                                p_target = cell.paragraphs[prev_i]
-                                                break
-                                        if p_target is None:
-                                            p_target = cell.paragraphs[p_idx].insert_paragraph_before()
-
-                                    inserted_any = False
-                                    if en and img_p and os.path.isfile(img_p):
-                                        w_cm = float(sig_cfg.get("kepala_width_cm" if is_k else "guru_width_cm", 3.5))
-                                        off_x = float(sig_cfg.get("offset_x_kepala_cm" if is_k else "offset_x_guru_cm", 0.0))
-                                        off_y = float(sig_cfg.get("offset_y_kepala_cm" if is_k else "offset_y_guru_cm", 0.0))
-                                        if insert_signature_picture(
-                                            p_target, img_p, width_cm=w_cm, alignment=al,
-                                            spacing_before_pt=sb, spacing_after_pt=sa,
-                                            behind_text=behind, offset_x_cm=off_x, offset_y_cm=off_y,
-                                            cell_width_emu=c_w
-                                        ):
-                                            inserted_any = True
-
-                                    if en_s and img_s and os.path.isfile(img_s):
-                                        w_s = float(sig_cfg.get("stempel_width_cm", 3.5))
-                                        off_x_s = float(sig_cfg.get("offset_x_stempel_cm", -1.5))
-                                        off_y_s = float(sig_cfg.get("offset_y_stempel_cm", 0.0))
-                                        if insert_signature_picture(
-                                            p_target, img_s, width_cm=w_s, alignment=al,
-                                            spacing_before_pt=sb, spacing_after_pt=sa,
-                                            behind_text=behind, offset_x_cm=off_x_s, offset_y_cm=off_y_s,
-                                            cell_width_emu=c_w
-                                        ):
-                                            inserted_any = True
-
-                                    if inserted_any:
-                                        changes += 1
-                                except Exception as e:
-                                    logger.warning("Gagal menyisipkan TTD/Stempel (%s) pada tabel #%s: %s", item.category, t_idx, e, exc_info=True)
+                            if _insert_signature_image_into_cell(
+                                cell, p_idx, role, sig_cfg, t_idx=t_idx, category=item.category
+                            ):
+                                changes += 1
 
             elif t_type == "PARAGRAPH_SPAN":
                 p_idx = meta.get("para_idx", 0)

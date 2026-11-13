@@ -43,6 +43,8 @@ CATEGORY_TO_LABEL = {
     "Nama Guru": "Nama Guru Mata Pelajaran",
     "NIP Guru": "NIP Guru Mata Pelajaran",
     "Titimangsa": "Titimangsa (Tempat, Tanggal)",
+    "Mata Pelajaran": "Mata Pelajaran",
+    "Fase / Kelas": "Fase / Kelas",
 }
 
 
@@ -374,6 +376,28 @@ def predict_rules_from_file(
             "old": "",
             "new": resolve_new(titi_lbl, "")
         })
+
+    # 7. Mata Pelajaran
+    mapel_lbl = CATEGORY_TO_LABEL.get("Mata Pelajaran", "Mata Pelajaran")
+    mapel_cands = [m for m in candidates.get("Mata Pelajaran", set()) if not is_pure_placeholder(m)]
+    if mapel_cands:
+        for m in sorted(mapel_cands, key=len, reverse=True):
+            predicted.append({
+                "label": mapel_lbl,
+                "old": m,
+                "new": resolve_new(mapel_lbl, "")
+            })
+
+    # 8. Fase / Kelas
+    fase_lbl = CATEGORY_TO_LABEL.get("Fase / Kelas", "Fase / Kelas")
+    fase_cands = [f for f in candidates.get("Fase / Kelas", set()) if not is_pure_placeholder(f)]
+    if fase_cands:
+        for f in sorted(fase_cands, key=len, reverse=True):
+            predicted.append({
+                "label": fase_lbl,
+                "old": f,
+                "new": resolve_new(fase_lbl, "")
+            })
 
     if current_rules:
         return smart_merge_rules(current_rules, predicted)

@@ -12,7 +12,7 @@ import re
 import json
 import logging
 
-from core.label_recognizer import normalize_string
+from core.text_norm import normalize_string
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ class FieldDictionary:
         default_path: str = "",
         user_path: str = "",
         user_synonyms: Optional[Dict[str, List[str]]] = None,
+        custom_fields: Optional[List[FieldDef]] = None,
         nip_tokens: Optional[List[str]] = None,
         nip_kepala_context: Optional[List[str]] = None,
         global_never_match: Optional[List[str]] = None,
@@ -87,8 +88,9 @@ class FieldDictionary:
         self._nip_kepala_context: List[str] = [_norm(x) for x in (nip_kepala_context or DEFAULT_KEPALA_CONTEXT) if _norm(x)]
         self._global_never_match: List[str] = [_norm(x) for x in (global_never_match or []) if _norm(x)]
         self._global_ignore_exact: List[str] = [_norm(x) for x in (global_ignore_exact or []) if _norm(x)]
-        self._fields: List[FieldDef] = fields_list
-        self._fields_by_id: Dict[str, FieldDef] = {f.id: f for f in fields_list}
+        self._custom_fields: List[FieldDef] = list(custom_fields or [])
+        self._fields: List[FieldDef] = list(fields_list) + [cf for cf in self._custom_fields if cf.id not in {f.id for f in fields_list}]
+        self._fields_by_id: Dict[str, FieldDef] = {f.id: f for f in self._fields}
         self.default_path = default_path
         self.user_path = user_path
         self._user_synonyms: Dict[str, List[str]] = user_synonyms or {}
@@ -157,6 +159,9 @@ class FieldDictionary:
                 FieldDef("tahun_penyusunan", "Tahun Penyusunan", "Tahun Penyusunan", "year_single", synonyms=["tahun penyusunan", "tahun pembuatan"]),
                 FieldDef("semester", "Semester", "Semester", "semester", synonyms=["semester", "semester ganjil", "semester genap"], exact_only_synonyms=["smt"]),
                 FieldDef("titimangsa", "Titimangsa", "Titimangsa (Tempat, Tgl)", "date_place", synonyms=["titimangsa", "tempat, tanggal", "tanggal pengesahan"], exact_only_synonyms=["tanggal"], never_match=["tanggal lahir"]),
+                FieldDef("jenjang_sekolah", "Jenjang Sekolah", "Jenjang Sekolah", "text", synonyms=["jenjang", "jenjang pendidikan", "jenjang sekolah"]),
+                FieldDef("mata_pelajaran", "Mata Pelajaran", "Mata Pelajaran", "text", synonyms=["mata pelajaran", "mapel", "muatan pelajaran", "mata uji", "nama mata pelajaran", "bidang studi"], never_match=["mata pelajaran siswa", "guru mata pelajaran", "pendidik mapel"]),
+                FieldDef("fase_kelas", "Fase / Kelas", "Fase / Kelas", "text", synonyms=["fase kelas", "fase kelas semester", "fase dan kelas", "tingkat kelas", "kelas semester"], exact_only_synonyms=["fase", "kelas", "tingkat", "rombel", "rombongan belajar"], never_match=["wali kelas", "guru kelas", "ruang kelas", "jumlah kelas", "ketua kelas", "asesmen", "diagnosis", "rubrik", "instrumen", "lkpd", "lembar kerja"]),
             ]
 
         # Muat kamus pengguna jika ada
@@ -164,11 +169,28 @@ class FieldDictionary:
             user_path = cls.get_default_user_path()
 
         user_synonyms: Dict[str, List[str]] = {}
+        custom_fields: List[FieldDef] = []
         if os.path.isfile(user_path):
             try:
                 with open(user_path, "r", encoding="utf-8") as f:
                     u_data = json.load(f)
                     user_synonyms = u_data.get("user_synonyms", {})
+                    for item in u_data.get("custom_fields", []):
+                        try:
+                            cf = FieldDef(
+                                id=item["id"],
+                                category=item["category"],
+                                display_label=item.get("display_label", item["category"]),
+                                value_type=item.get("value_type", "text"),
+                                match_mode=item.get("match_mode", "word_boundary"),
+                                priority=int(item.get("priority", 50)),
+                                synonyms=[s.strip() for s in item.get("synonyms", []) if s.strip()],
+                                exact_only_synonyms=[s.strip() for s in item.get("exact_only_synonyms", []) if s.strip()],
+                                never_match=[s.strip() for s in item.get("never_match", []) if s.strip()],
+                            )
+                            custom_fields.append(cf)
+                        except Exception as err:
+                            logger.warning("Gagal mengurai custom field pengguna %s: %s", item, err)
             except Exception as e:
                 logger.warning("Kamus pengguna %s rusak atau tidak valid: %s. Menggunakan kamus bawaan.", user_path, e)
 
@@ -178,6 +200,7 @@ class FieldDictionary:
             default_path=default_path,
             user_path=user_path,
             user_synonyms=user_synonyms,
+            custom_fields=custom_fields,
             nip_tokens=nip_cfg.get("tokens"),
             nip_kepala_context=nip_cfg.get("kepala_context"),
             global_never_match=root_cfg.get("global_never_match"),
@@ -332,15 +355,82 @@ class FieldDictionary:
             return True
         return False
 
+    def add_custom_field(
+        self,
+        category: str,
+        display_label: str = "",
+        value_type: str = "text",
+        synonyms: Optional[List[str]] = None,
+    ) -> FieldDef:
+        """
+        Menambahkan field kustom baru buatan pengguna dan menyimpannya permanen ke dictionary.user.json.
+        """
+        cat = category.strip()
+        if not cat:
+            raise ValueError("Kategori field tidak boleh kosong.")
+        lbl = (display_label or cat).strip()
+
+        # Buat id berbasis teks kategori
+        clean_id_base = "custom_" + re.sub(r"[^a-z0-9]+", "_", cat.lower()).strip("_")
+        if not clean_id_base or clean_id_base == "custom_":
+            clean_id_base = "custom_field"
+
+        f_id = clean_id_base
+        counter = 2
+        while f_id in self._fields_by_id:
+            if self._fields_by_id[f_id].category.lower() == cat.lower():
+                # Sudah ada field dengan kategori ini, kembalikan yang ada
+                return self._fields_by_id[f_id]
+            f_id = f"{clean_id_base}_{counter}"
+            counter += 1
+
+        clean_syns: List[str] = []
+        for s in (synonyms or []):
+            cs = _norm(s)
+            if cs and cs not in clean_syns:
+                clean_syns.append(cs)
+        cat_norm = _norm(cat)
+        if cat_norm and cat_norm not in clean_syns:
+            clean_syns.append(cat_norm)
+
+        f_def = FieldDef(
+            id=f_id,
+            category=cat,
+            display_label=lbl,
+            value_type=value_type,
+            match_mode="word_boundary",
+            priority=50,
+            synonyms=clean_syns,
+        )
+        self._custom_fields.append(f_def)
+        self._fields.append(f_def)
+        self._fields_by_id[f_id] = f_def
+        self.save_user()
+        return f_def
+
     def save_user(self) -> None:
-        """Menyimpan seluruh sinonim kustom pengguna ke berkas JSON pengguna."""
+        """Menyimpan seluruh sinonim kustom pengguna dan field kustom ke berkas JSON pengguna."""
         if not self.user_path:
             self.user_path = self.get_default_user_path()
 
         os.makedirs(os.path.dirname(self.user_path), exist_ok=True)
         payload = {
             "version": 2,
-            "user_synonyms": self._user_synonyms
+            "user_synonyms": self._user_synonyms,
+            "custom_fields": [
+                {
+                    "id": f.id,
+                    "category": f.category,
+                    "display_label": f.display_label,
+                    "value_type": f.value_type,
+                    "match_mode": f.match_mode,
+                    "priority": f.priority,
+                    "synonyms": f.synonyms,
+                    "exact_only_synonyms": f.exact_only_synonyms,
+                    "never_match": f.never_match,
+                }
+                for f in self._custom_fields
+            ],
         }
         with open(self.user_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, ensure_ascii=False)

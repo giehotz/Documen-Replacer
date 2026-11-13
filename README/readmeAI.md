@@ -46,10 +46,8 @@ d:\docomen_replacer\
 ├── document/                   # Manipulasi Dokumen Word Tingkat Rendah (python-docx & XML)
 │   ├── __init__.py
 │   ├── docx_reader.py          # Ekstraksi teks paragraf, tabel berulang, header, & footer
-│   ├── docx_writer.py          # Run-level text replacement & preservasi drawing/formatting
-│   ├── header_footer_processor.py # Penelusuran & penggantian teks header/footer tiap seksi
-│   ├── paragraph_processor.py  # Penggantian teks run-level pada paragraf & proteksi drawing
-│   └── table_processor.py      # Penggantian teks run-level di dalam sel-sel tabel dokumen
+│   ├── docx_writer.py          # Penyimpan dokumen atomik (anti-corrupt)
+│   └── paragraph_processor.py  # Penggantian teks run-level pada paragraf & proteksi drawing
 │
 ├── gui/                        # Antarmuka Pengguna Desktop (Tkinter + ttk)
 │   ├── __init__.py
@@ -75,23 +73,23 @@ d:\docomen_replacer\
 ├── signatures/                 # Pustaka Gambar Tanda Tangan & Stempel Pengguna
 │   └── .gitkeep                # Hanya .gitkeep yang di-commit (gambar dilindungi .gitignore)
 │
-├── tests/                      # Suite Pengujian Otomatis (98 Tests Wajib Lulus)
+├── tests/                      # Suite Pengujian Otomatis (98 Tests Wajib Lulus, 4 Skipped)
 │   ├── __init__.py
 │   ├── generate_samples.py     # Generator dokumen sampel uji .docx
-│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (25 test)
-│   ├── test_year_replacement.py # Uji coba 7 kasus golden test pola tahun (7 test)
-│   ├── test_overlapping_proposals.py # Uji resolusi konflik usulan tumpang tindih (2 test)
-│   ├── test_change_verifier.py # Uji verifikasi mekanis/semantik & laporan JSON (4 test)
-│   ├── test_modul_ajar_context.py # Uji coba tabel identitas multi-paragraf Modul Ajar (3 test)
 │   ├── test_anti_blind_replacement.py # Uji proteksi anti-blind replacement & isolasi placeholder (3 test)
-│   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label (13 test)
+│   ├── test_change_verifier.py # Uji verifikasi mekanis/semantik & laporan JSON (4 test)
 │   ├── test_dictionary_corpus.py # Uji akurasi deteksi kamus terhadap korpus nyata (13 test)
+│   ├── test_doc_compat.py      # Uji coba kompatibilitas .doc & fallback LibreOffice (6 test)
 │   ├── test_document_predictor.py # Uji coba prediksi field & auto-fill aturan (7 test)
-│   ├── test_doc_compat.py      # Uji coba kompatibilitas .doc & fallback LibreOffice (5 test)
-│   ├── test_pdf_converter.py   # Uji coba konverter PDF hermetis Word COM & LibreOffice (7 test)
-│   ├── test_signature_library.py # Uji coba pustaka tanda tangan & stempel terpisah (6 test)
-│   ├── test_signature_multi_image.py # Uji coba penyisipan 3 gambar ke XML Word (6 test)
-│   └── test_signature_prediction.py # Uji deteksi orientasi & prediksi koordinat TTD (5 test)
+│   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label (10 test)
+│   ├── test_modul_ajar_context.py # Uji coba tabel identitas multi-paragraf Modul Ajar (3 test)
+│   ├── test_overlapping_proposals.py # Uji resolusi konflik usulan tumpang tindih (2 test)
+│   ├── test_pdf_converter.py   # Uji coba konverter PDF hermetis Word COM & LibreOffice (9 test)
+│   ├── test_signature_library.py # Uji coba pustaka tanda tangan & stempel terpisah (4 test)
+│   ├── test_signature_multi_image.py # Uji coba penyisipan 3 gambar ke XML Word (2 test)
+│   ├── test_signature_prediction.py # Uji deteksi orientasi & prediksi koordinat TTD (3 test)
+│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (25 test)
+│   └── test_year_replacement.py # Uji coba 7 kasus golden test pola tahun (7 test)
 │
 ├── utils/                      # Utilitas Lintas Platform
 │   ├── __init__.py
@@ -265,7 +263,7 @@ You must adhere strictly to these non-negotiable rules:
 
 4. VERIFICATION COMMAND:
    - Run tests using: python -m unittest discover tests
-   - All 92+ tests must pass before concluding any task.
+   - All 98 tests must pass (4 skipped) before concluding any task.
 
 5. ATOMIC WRITES:
    - Always write edited docx files atomically using tempfile.mkstemp and os.replace.

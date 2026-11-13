@@ -76,6 +76,8 @@ class DictionaryManagerDialog(tk.Toplevel):
         sb_left.pack(side="right", fill="y")
         self.field_listbox.configure(yscrollcommand=sb_left.set)
 
+        ttk.Button(left_frame, text="➕ Tambah Field Baru...", command=self._open_add_field_dialog).pack(fill="x", pady=(6, 0), side="bottom")
+
         for f in self.fields:
             self.field_listbox.insert("end", f" {f.display_label}")
 
@@ -254,6 +256,79 @@ class DictionaryManagerDialog(tk.Toplevel):
         except Exception as e:
             messagebox.showerror("Gagal Menyimpan Kamus", f"Terjadi kesalahan saat menyimpan:\n{e}", parent=self)
 
+    def _open_add_field_dialog(self):
+        """Membuka dialog untuk menambahkan field kustom baru."""
+        dlg = tk.Toplevel(self)
+        dlg.title("Tambah Field Kamus Baru")
+        dlg.geometry("460x320")
+        dlg.minsize(400, 280)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        f = ttk.Frame(dlg, padding=14)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Nama / Label Tampilan:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        e_label = ttk.Entry(f, width=40)
+        e_label.pack(fill="x", pady=(2, 8))
+
+        ttk.Label(f, text="Kategori Data (Internal):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        e_cat = ttk.Entry(f, width=40)
+        e_cat.pack(fill="x", pady=(2, 8))
+
+        def _sync_cat(event=None):
+            if not e_cat.get() or e_cat.get() == e_label.get()[:-1]:
+                e_cat.delete(0, "end")
+                e_cat.insert(0, e_label.get())
+        e_label.bind("<KeyRelease>", _sync_cat)
+
+        ttk.Label(f, text="Tipe Nilai:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        c_vtype = ttk.Combobox(f, values=["text", "person_name", "nip", "year_range", "year_single", "date_place", "semester"], state="readonly")
+        c_vtype.set("text")
+        c_vtype.pack(fill="x", pady=(2, 8))
+
+        ttk.Label(f, text="Sinonim Tambahan (pisahkan dengan koma):").pack(anchor="w")
+        e_syns = ttk.Entry(f, width=40)
+        e_syns.pack(fill="x", pady=(2, 12))
+
+        btn_row = ttk.Frame(f)
+        btn_row.pack(fill="x")
+
+        def _do_save():
+            lbl_val = e_label.get().strip()
+            cat_val = e_cat.get().strip() or lbl_val
+            if not lbl_val:
+                messagebox.showwarning("Peringatan", "Nama field tidak boleh kosong.", parent=dlg)
+                return
+            syns = [s.strip() for s in e_syns.get().split(",") if s.strip()]
+            try:
+                new_f = self.dictionary.add_custom_field(
+                    category=cat_val,
+                    display_label=lbl_val,
+                    value_type=c_vtype.get(),
+                    synonyms=syns
+                )
+                self.fields = self.dictionary.fields()
+                self.field_listbox.delete(0, "end")
+                target_idx = 0
+                for i, fd in enumerate(self.fields):
+                    self.field_listbox.insert("end", f" {fd.display_label}")
+                    if fd.id == new_f.id:
+                        target_idx = i
+                self.field_listbox.selection_clear(0, "end")
+                self.field_listbox.selection_set(target_idx)
+                self._on_field_selected()
+                dlg.destroy()
+                if self.on_saved_callback:
+                    self.on_saved_callback()
+                messagebox.showinfo("Sukses", f"Field '{new_f.display_label}' berhasil ditambahkan ke kamus!", parent=self)
+            except Exception as ex:
+                messagebox.showerror("Error", f"Gagal menambahkan field: {ex}", parent=dlg)
+
+        ttk.Button(btn_row, text="Simpan Field", command=_do_save).pack(side="right", padx=(6, 0))
+        ttk.Button(btn_row, text="Batal", command=dlg.destroy).pack(side="right")
+
+
 
 class UnknownLabelsDialog(tk.Toplevel):
     """
@@ -343,6 +418,9 @@ class UnknownLabelsDialog(tk.Toplevel):
         self.btn_map = ttk.Button(row1, text="➕ Tambahkan ke Kamus", command=self._map_selected_label, state="disabled")
         self.btn_map.pack(side="left")
 
+        self.btn_new_field = ttk.Button(row1, text="✨ + Buat Field Baru...", command=self._create_new_field_from_label, state="disabled")
+        self.btn_new_field.pack(side="left", padx=(6, 0))
+
         # Tombol Bawah
         bottom_bar = ttk.Frame(self, padding=(12, 6, 12, 12))
         bottom_bar.pack(fill="x")
@@ -356,10 +434,76 @@ class UnknownLabelsDialog(tk.Toplevel):
         if not sel:
             self.lbl_selected_target.configure(text="(Pilih salah satu baris di atas)")
             self.btn_map.configure(state="disabled")
+            self.btn_new_field.configure(state="disabled")
             return
         lbl = sel[0]
         self.lbl_selected_target.configure(text=f"'{lbl}'")
         self.btn_map.configure(state="normal")
+        self.btn_new_field.configure(state="normal")
+
+    def _create_new_field_from_label(self):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        target_lbl = sel[0]
+
+        dlg = tk.Toplevel(self)
+        dlg.title(f"Buat Field Baru: '{target_lbl}'")
+        dlg.geometry("450x260")
+        dlg.minsize(380, 230)
+        dlg.transient(self)
+        dlg.grab_set()
+
+        f = ttk.Frame(dlg, padding=14)
+        f.pack(fill="both", expand=True)
+
+        ttk.Label(f, text="Nama Field (Display Label):", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        e_label = ttk.Entry(f, width=40)
+        e_label.insert(0, target_lbl)
+        e_label.pack(fill="x", pady=(2, 8))
+
+        ttk.Label(f, text="Kategori Data:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        e_cat = ttk.Entry(f, width=40)
+        e_cat.insert(0, target_lbl)
+        e_cat.pack(fill="x", pady=(2, 8))
+
+        ttk.Label(f, text="Tipe Nilai:", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        c_vtype = ttk.Combobox(f, values=["text", "person_name", "nip", "year_range", "year_single", "date_place", "semester"], state="readonly")
+        c_vtype.set("text")
+        c_vtype.pack(fill="x", pady=(2, 12))
+
+        btn_row = ttk.Frame(f)
+        btn_row.pack(fill="x")
+
+        def _do_save():
+            lbl_val = e_label.get().strip() or target_lbl
+            cat_val = e_cat.get().strip() or lbl_val
+            try:
+                new_f = self.dictionary.add_custom_field(
+                    category=cat_val,
+                    display_label=lbl_val,
+                    value_type=c_vtype.get(),
+                    synonyms=[target_lbl]
+                )
+                self.fields = self.dictionary.fields()
+                self.combo_field["values"] = [fd.display_label for fd in self.fields]
+                self.combo_field.set(new_f.display_label)
+                self.tree.delete(target_lbl)
+                self.lbl_selected_target.configure(text="(Pilih salah satu baris di atas)")
+                self.btn_map.configure(state="disabled")
+                self.btn_new_field.configure(state="disabled")
+                self.lbl_action_status.configure(
+                    text=f"✔ Berhasil membuat field baru '{new_f.display_label}' dan memetakan '{target_lbl}'!",
+                    foreground="#0b8043"
+                )
+                dlg.destroy()
+                if self.on_synonym_added_callback:
+                    self.on_synonym_added_callback()
+            except Exception as ex:
+                messagebox.showerror("Error", f"Gagal membuat field baru: {ex}", parent=dlg)
+
+        ttk.Button(btn_row, text="Simpan & Petakan", command=_do_save).pack(side="right", padx=(6, 0))
+        ttk.Button(btn_row, text="Batal", command=dlg.destroy).pack(side="right")
 
     def _map_selected_label(self):
         sel = self.tree.selection()

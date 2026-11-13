@@ -61,6 +61,17 @@ class TestFieldDictionary(unittest.TestCase):
         self.assertEqual(self.dict.resolve("Titimangsa").field.id, "titimangsa")
         self.assertEqual(self.dict.resolve("Tanggal").field.id, "titimangsa")
 
+        # Mata Pelajaran
+        self.assertEqual(self.dict.resolve("Mata pelajaran").field.id, "mata_pelajaran")
+        self.assertEqual(self.dict.resolve("Mapel").field.id, "mata_pelajaran")
+        self.assertEqual(self.dict.resolve("Muatan Pelajaran").field.id, "mata_pelajaran")
+
+        # Fase / Kelas
+        self.assertEqual(self.dict.resolve("Fase, Kelas / Semester").field.id, "fase_kelas")
+        self.assertEqual(self.dict.resolve("Fase / Kelas").field.id, "fase_kelas")
+        self.assertEqual(self.dict.resolve("Kelas").field.id, "fase_kelas")
+        self.assertEqual(self.dict.resolve("Fase").field.id, "fase_kelas")
+
     def test_negative_resolutions(self):
         """Memastikan kata-kata jebakan tidak salah dicocokkan (never_match & word-boundary)."""
         self.assertIsNone(self.dict.resolve("Output").field)
@@ -157,6 +168,30 @@ class TestFieldDictionary(unittest.TestCase):
         self.assertIn("Instruktur Lapangan", unknowns)
         self.assertNotIn("Nama Sekolah", unknowns)
         self.assertNotIn("Tahun Pelajaran", unknowns)
+
+    def test_custom_field_creation_and_persistence(self):
+        """Memastikan penambahan custom field baru tersimpan ke JSON dan dapat dimuat ulang."""
+        new_field = self.dict.add_custom_field(
+            category="Program Keahlian",
+            display_label="Program Keahlian",
+            value_type="text",
+            synonyms=["jurusan", "kompetensi keahlian"]
+        )
+        self.assertEqual(new_field.category, "Program Keahlian")
+        self.assertTrue(new_field.id.startswith("custom_"))
+
+        # Resolusi label baru
+        res = self.dict.resolve("Jurusan")
+        self.assertIsNotNone(res.field)
+        self.assertEqual(res.field.category, "Program Keahlian")
+
+        # Muat ulang dari file
+        reloaded = FieldDictionary.load(user_path=self.user_file)
+        res_reloaded = reloaded.resolve("Kompetensi Keahlian")
+        self.assertIsNotNone(res_reloaded.field)
+        self.assertEqual(res_reloaded.field.category, "Program Keahlian")
+        self.assertIn("Program Keahlian", [f.category for f in reloaded.fields()])
+
 
 
 class TestDictionaryGuiIntegration(unittest.TestCase):

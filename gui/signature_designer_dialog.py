@@ -11,6 +11,7 @@ Menyediakan:
 - Penyimpanan pengaturan permanen ke config/signature_settings.json
 """
 import os
+from dataclasses import dataclass
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Dict, Any, Optional, List
@@ -26,6 +27,120 @@ from core.signature_image_service import (
     get_signatures_by_category,
     predict_signature_layout,
 )
+
+
+@dataclass
+class GeometryProfile:
+    """Model data penempatan geometri tanda tangan & stempel untuk satu orientasi dokumen."""
+    width_kepala: float = 3.5
+    offx_kepala: float = 0.0
+    offy_kepala: float = 0.0
+    width_guru: float = 3.5
+    offx_guru: float = 0.0
+    offy_guru: float = 0.0
+    width_stempel: float = 3.5
+    offx_stempel: float = -1.5
+    offy_stempel: float = 0.0
+
+    def copy(self) -> "GeometryProfile":
+        return GeometryProfile(
+            width_kepala=self.width_kepala,
+            offx_kepala=self.offx_kepala,
+            offy_kepala=self.offy_kepala,
+            width_guru=self.width_guru,
+            offx_guru=self.offx_guru,
+            offy_guru=self.offy_guru,
+            width_stempel=self.width_stempel,
+            offx_stempel=self.offx_stempel,
+            offy_stempel=self.offy_stempel,
+        )
+
+    def auto_compensate_landscape(self) -> "GeometryProfile":
+        """Menghitung kompensasi otomatis untuk kolom tabel lanskap yang lebih lebar (-2.3 cm offset X)."""
+        return GeometryProfile(
+            width_kepala=self.width_kepala,
+            offx_kepala=round(self.offx_kepala - 2.3, 1),
+            offy_kepala=self.offy_kepala,
+            width_guru=self.width_guru,
+            offx_guru=round(self.offx_guru - 2.3, 1),
+            offy_guru=self.offy_guru,
+            width_stempel=self.width_stempel,
+            offx_stempel=round(self.offx_stempel - 2.3, 1),
+            offy_stempel=self.offy_stempel,
+        )
+
+    def to_settings_dict(self) -> Dict[str, float]:
+        """Format dictionary yang disimpan ke berkas signature_settings.json."""
+        return {
+            "kepala_width_cm": self.width_kepala,
+            "offset_x_kepala_cm": self.offx_kepala,
+            "offset_y_kepala_cm": self.offy_kepala,
+            "guru_width_cm": self.width_guru,
+            "offset_x_guru_cm": self.offx_guru,
+            "offset_y_guru_cm": self.offy_guru,
+            "stempel_width_cm": self.width_stempel,
+            "offset_x_stempel_cm": self.offx_stempel,
+            "offset_y_stempel_cm": self.offy_stempel,
+        }
+
+    @classmethod
+    def from_settings_dict(
+        cls,
+        data: Dict[str, Any],
+        fallback: Optional["GeometryProfile"] = None
+    ) -> "GeometryProfile":
+        fb = fallback or cls()
+        return cls(
+            width_kepala=float(data.get("kepala_width_cm", fb.width_kepala)),
+            offx_kepala=float(data.get("offset_x_kepala_cm", fb.offx_kepala)),
+            offy_kepala=float(data.get("offset_y_kepala_cm", fb.offy_kepala)),
+            width_guru=float(data.get("guru_width_cm", fb.width_guru)),
+            offx_guru=float(data.get("offset_x_guru_cm", fb.offx_guru)),
+            offy_guru=float(data.get("offset_y_guru_cm", fb.offy_guru)),
+            width_stempel=float(data.get("stempel_width_cm", fb.width_stempel)),
+            offx_stempel=float(data.get("offset_x_stempel_cm", fb.offx_stempel)),
+            offy_stempel=float(data.get("offset_y_stempel_cm", fb.offy_stempel)),
+        )
+
+    def update_from_dialog(self, dialog: Any) -> None:
+        """Menyinkronkan nilai geometri dari slider dialog ke profil ini."""
+        self.width_kepala = round(dialog.width_kepala_var.get(), 1)
+        self.offx_kepala = round(dialog.offx_kepala_var.get(), 1)
+        self.offy_kepala = round(dialog.offy_kepala_var.get(), 1)
+        self.width_guru = round(dialog.width_guru_var.get(), 1)
+        self.offx_guru = round(dialog.offx_guru_var.get(), 1)
+        self.offy_guru = round(dialog.offy_guru_var.get(), 1)
+        self.width_stempel = round(dialog.width_stempel_var.get(), 1)
+        self.offx_stempel = round(dialog.offx_stempel_var.get(), 1)
+        self.offy_stempel = round(dialog.offy_stempel_var.get(), 1)
+
+    def apply_to_dialog(self, dialog: Any) -> None:
+        """Menerapkan nilai profil geometri ini ke slider dan label dialog."""
+        dialog.width_kepala_var.set(self.width_kepala)
+        dialog.offx_kepala_var.set(self.offx_kepala)
+        dialog.offy_kepala_var.set(self.offy_kepala)
+        dialog.width_guru_var.set(self.width_guru)
+        dialog.offx_guru_var.set(self.offx_guru)
+        dialog.offy_guru_var.set(self.offy_guru)
+        dialog.width_stempel_var.set(self.width_stempel)
+        dialog.offx_stempel_var.set(self.offx_stempel)
+        dialog.offy_stempel_var.set(self.offy_stempel)
+
+        dialog.lbl_width_kepala.config(text=f"{self.width_kepala:.1f} cm")
+        dialog.lbl_offx_kepala.config(text=dialog._fmt_offset(self.offx_kepala))
+        dialog.lbl_offy_kepala.config(text=dialog._fmt_offset(self.offy_kepala))
+        dialog.lbl_width_guru.config(text=f"{self.width_guru:.1f} cm")
+        dialog.lbl_offx_guru.config(text=dialog._fmt_offset(self.offx_guru))
+        dialog.lbl_offy_guru.config(text=dialog._fmt_offset(self.offy_guru))
+        dialog.lbl_width_stempel.config(text=f"{self.width_stempel:.1f} cm")
+        dialog.lbl_offx_stempel.config(text=dialog._fmt_offset(self.offx_stempel))
+        dialog.lbl_offy_stempel.config(text=dialog._fmt_offset(self.offy_stempel))
+
+    def __getitem__(self, item: str) -> float:
+        return getattr(self, item)
+
+    def __setitem__(self, key: str, value: float) -> None:
+        setattr(self, key, value)
 
 
 class SignatureDesignerDialog(tk.Toplevel):
@@ -82,44 +197,16 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.spacing_var = tk.IntVar(value=int(self.settings.get("spacing_before_pt", 2)))
 
         # Profil Geometri Potrait
-        self.portrait_geo = {
-            "width_kepala": float(self.settings.get("kepala_width_cm", 3.5)),
-            "offx_kepala": float(self.settings.get("offset_x_kepala_cm", 0.0)),
-            "offy_kepala": float(self.settings.get("offset_y_kepala_cm", 0.0)),
-            "width_guru": float(self.settings.get("guru_width_cm", 3.5)),
-            "offx_guru": float(self.settings.get("offset_x_guru_cm", 0.0)),
-            "offy_guru": float(self.settings.get("offset_y_guru_cm", 0.0)),
-            "width_stempel": float(self.settings.get("stempel_width_cm", 3.5)),
-            "offx_stempel": float(self.settings.get("offset_x_stempel_cm", -1.5)),
-            "offy_stempel": float(self.settings.get("offset_y_stempel_cm", 0.0)),
-        }
+        self.portrait_geo = GeometryProfile.from_settings_dict(self.settings)
 
         # Profil Geometri Lanskap
         land_cfg = self.settings.get("landscape")
         if isinstance(land_cfg, dict):
-            self.landscape_geo = {
-                "width_kepala": float(land_cfg.get("kepala_width_cm", self.portrait_geo["width_kepala"])),
-                "offx_kepala": float(land_cfg.get("offset_x_kepala_cm", round(self.portrait_geo["offx_kepala"] - 2.3, 1))),
-                "offy_kepala": float(land_cfg.get("offset_y_kepala_cm", self.portrait_geo["offy_kepala"])),
-                "width_guru": float(land_cfg.get("guru_width_cm", self.portrait_geo["width_guru"])),
-                "offx_guru": float(land_cfg.get("offset_x_guru_cm", round(self.portrait_geo["offx_guru"] - 2.3, 1))),
-                "offy_guru": float(land_cfg.get("offset_y_guru_cm", self.portrait_geo["offy_guru"])),
-                "width_stempel": float(land_cfg.get("stempel_width_cm", self.portrait_geo["width_stempel"])),
-                "offx_stempel": float(land_cfg.get("offset_x_stempel_cm", round(self.portrait_geo["offx_stempel"] - 2.3, 1))),
-                "offy_stempel": float(land_cfg.get("offset_y_stempel_cm", self.portrait_geo["offy_stempel"])),
-            }
+            self.landscape_geo = GeometryProfile.from_settings_dict(
+                land_cfg, fallback=self.portrait_geo.auto_compensate_landscape()
+            )
         else:
-            self.landscape_geo = {
-                "width_kepala": self.portrait_geo["width_kepala"],
-                "offx_kepala": round(self.portrait_geo["offx_kepala"] - 2.3, 1),
-                "offy_kepala": self.portrait_geo["offy_kepala"],
-                "width_guru": self.portrait_geo["width_guru"],
-                "offx_guru": round(self.portrait_geo["offx_guru"] - 2.3, 1),
-                "offy_guru": self.portrait_geo["offy_guru"],
-                "width_stempel": self.portrait_geo["width_stempel"],
-                "offx_stempel": round(self.portrait_geo["offx_stempel"] - 2.3, 1),
-                "offy_stempel": self.portrait_geo["offy_stempel"],
-            }
+            self.landscape_geo = self.portrait_geo.auto_compensate_landscape()
 
         # Variabel aktif yang terikat ke slider GUI
         self.width_kepala_var = tk.DoubleVar(value=self.portrait_geo["width_kepala"])
@@ -886,39 +973,12 @@ class SignatureDesignerDialog(tk.Toplevel):
         if target_mode == self.current_orientation:
             return
 
-        active_dict = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
-        active_dict["width_kepala"] = round(self.width_kepala_var.get(), 1)
-        active_dict["offx_kepala"] = round(self.offx_kepala_var.get(), 1)
-        active_dict["offy_kepala"] = round(self.offy_kepala_var.get(), 1)
-        active_dict["width_guru"] = round(self.width_guru_var.get(), 1)
-        active_dict["offx_guru"] = round(self.offx_guru_var.get(), 1)
-        active_dict["offy_guru"] = round(self.offy_guru_var.get(), 1)
-        active_dict["width_stempel"] = round(self.width_stempel_var.get(), 1)
-        active_dict["offx_stempel"] = round(self.offx_stempel_var.get(), 1)
-        active_dict["offy_stempel"] = round(self.offy_stempel_var.get(), 1)
+        active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_geo.update_from_dialog(self)
 
         self.current_orientation = target_mode
-        new_dict = self.portrait_geo if target_mode == "PORTRAIT" else self.landscape_geo
-
-        self.width_kepala_var.set(new_dict["width_kepala"])
-        self.offx_kepala_var.set(new_dict["offx_kepala"])
-        self.offy_kepala_var.set(new_dict["offy_kepala"])
-        self.width_guru_var.set(new_dict["width_guru"])
-        self.offx_guru_var.set(new_dict["offx_guru"])
-        self.offy_guru_var.set(new_dict["offy_guru"])
-        self.width_stempel_var.set(new_dict["width_stempel"])
-        self.offx_stempel_var.set(new_dict["offx_stempel"])
-        self.offy_stempel_var.set(new_dict["offy_stempel"])
-
-        self.lbl_width_kepala.config(text=f"{new_dict['width_kepala']:.1f} cm")
-        self.lbl_offx_kepala.config(text=self._fmt_offset(new_dict['offx_kepala']))
-        self.lbl_offy_kepala.config(text=self._fmt_offset(new_dict['offy_kepala']))
-        self.lbl_width_guru.config(text=f"{new_dict['width_guru']:.1f} cm")
-        self.lbl_offx_guru.config(text=self._fmt_offset(new_dict['offx_guru']))
-        self.lbl_offy_guru.config(text=self._fmt_offset(new_dict['offy_guru']))
-        self.lbl_width_stempel.config(text=f"{new_dict['width_stempel']:.1f} cm")
-        self.lbl_offx_stempel.config(text=self._fmt_offset(new_dict['offx_stempel']))
-        self.lbl_offy_stempel.config(text=self._fmt_offset(new_dict['offy_stempel']))
+        new_geo = self.portrait_geo if target_mode == "PORTRAIT" else self.landscape_geo
+        new_geo.apply_to_dialog(self)
 
         if target_mode == "PORTRAIT":
             self.btn_tab_portrait.config(bg="#0066cc", fg="#ffffff", font=("Segoe UI", 9, "bold"))
@@ -933,8 +993,7 @@ class SignatureDesignerDialog(tk.Toplevel):
 
     def _copy_from_portrait(self):
         """Menyalin nilai konfigurasi potrait ke lanskap."""
-        for k in ("width_kepala", "offx_kepala", "offy_kepala", "width_guru", "offx_guru", "offy_guru", "width_stempel", "offx_stempel", "offy_stempel"):
-            self.landscape_geo[k] = self.portrait_geo[k]
+        self.landscape_geo = self.portrait_geo.copy()
 
         if self.current_orientation == "LANDSCAPE":
             self._switch_orientation("PORTRAIT")
@@ -942,15 +1001,7 @@ class SignatureDesignerDialog(tk.Toplevel):
 
     def _auto_compensate_landscape(self):
         """Menghitung kompensasi otomatis untuk kolom tabel lanskap yang lebih lebar."""
-        self.landscape_geo["width_kepala"] = self.portrait_geo["width_kepala"]
-        self.landscape_geo["offx_kepala"] = round(self.portrait_geo["offx_kepala"] - 2.3, 1)
-        self.landscape_geo["offy_kepala"] = self.portrait_geo["offy_kepala"]
-        self.landscape_geo["width_guru"] = self.portrait_geo["width_guru"]
-        self.landscape_geo["offx_guru"] = round(self.portrait_geo["offx_guru"] - 2.3, 1)
-        self.landscape_geo["offy_guru"] = self.portrait_geo["offy_guru"]
-        self.landscape_geo["width_stempel"] = self.portrait_geo["width_stempel"]
-        self.landscape_geo["offx_stempel"] = round(self.portrait_geo["offx_stempel"] - 2.3, 1)
-        self.landscape_geo["offy_stempel"] = self.portrait_geo["offy_stempel"]
+        self.landscape_geo = self.portrait_geo.auto_compensate_landscape()
 
         if self.current_orientation == "LANDSCAPE":
             self._switch_orientation("PORTRAIT")
@@ -1250,93 +1301,41 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.behind_text_var.set(True)
         self.spacing_var.set(2)
 
-        self.portrait_geo = {
-            "width_kepala": 3.5, "offx_kepala": 0.0, "offy_kepala": 0.0,
-            "width_guru": 3.5, "offx_guru": 0.0, "offy_guru": 0.0,
-            "width_stempel": 3.5, "offx_stempel": -1.5, "offy_stempel": 0.0,
-        }
-        self.landscape_geo = {
-            "width_kepala": 3.5, "offx_kepala": -2.3, "offy_kepala": 0.0,
-            "width_guru": 3.5, "offx_guru": -2.3, "offy_guru": 0.0,
-            "width_stempel": 3.5, "offx_stempel": -3.8, "offy_stempel": 0.0,
-        }
+        self.portrait_geo = GeometryProfile()
+        self.landscape_geo = GeometryProfile(offx_kepala=-2.3, offx_guru=-2.3, offx_stempel=-3.8)
 
         active = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
-        self.width_kepala_var.set(active["width_kepala"])
-        self.offx_kepala_var.set(active["offx_kepala"])
-        self.offy_kepala_var.set(active["offy_kepala"])
-        self.width_guru_var.set(active["width_guru"])
-        self.offx_guru_var.set(active["offx_guru"])
-        self.offy_guru_var.set(active["offy_guru"])
-        self.width_stempel_var.set(active["width_stempel"])
-        self.offx_stempel_var.set(active["offx_stempel"])
-        self.offy_stempel_var.set(active["offy_stempel"])
-
-        self.lbl_width_kepala.config(text=f"{active['width_kepala']:.1f} cm")
-        self.lbl_offx_kepala.config(text=self._fmt_offset(active["offx_kepala"]))
-        self.lbl_offy_kepala.config(text=self._fmt_offset(active["offy_kepala"]))
-        self.lbl_width_guru.config(text=f"{active['width_guru']:.1f} cm")
-        self.lbl_offx_guru.config(text=self._fmt_offset(active["offx_guru"]))
-        self.lbl_offy_guru.config(text=self._fmt_offset(active["offy_guru"]))
-        self.lbl_width_stempel.config(text=f"{active['width_stempel']:.1f} cm")
-        self.lbl_offx_stempel.config(text=self._fmt_offset(active["offx_stempel"]))
-        self.lbl_offy_stempel.config(text=self._fmt_offset(active["offy_stempel"]))
+        active.apply_to_dialog(self)
 
         self._selected_target = None
         self._refresh_library_comboboxes()
         self._update_preview()
 
     def _save_settings(self):
-        active_dict = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
-        active_dict["width_kepala"] = round(self.width_kepala_var.get(), 1)
-        active_dict["offx_kepala"] = round(self.offx_kepala_var.get(), 1)
-        active_dict["offy_kepala"] = round(self.offy_kepala_var.get(), 1)
-        active_dict["width_guru"] = round(self.width_guru_var.get(), 1)
-        active_dict["offx_guru"] = round(self.offx_guru_var.get(), 1)
-        active_dict["offy_guru"] = round(self.offy_guru_var.get(), 1)
-        active_dict["width_stempel"] = round(self.width_stempel_var.get(), 1)
-        active_dict["offx_stempel"] = round(self.offx_stempel_var.get(), 1)
-        active_dict["offy_stempel"] = round(self.offy_stempel_var.get(), 1)
+        active_geo = self.portrait_geo if self.current_orientation == "PORTRAIT" else self.landscape_geo
+        active_geo.update_from_dialog(self)
 
         new_settings = dict(self.settings)
         new_settings.update({
             "enabled_kepala": self.enable_kepala_var.get(),
             "kepala_image_path": self.path_kepala_var.get().strip(),
             "kepala_name": self.name_kepala_var.get().strip(),
-            "kepala_width_cm": self.portrait_geo["width_kepala"],
-            "offset_x_kepala_cm": self.portrait_geo["offx_kepala"],
-            "offset_y_kepala_cm": self.portrait_geo["offy_kepala"],
 
             "enabled_guru": self.enable_guru_var.get(),
             "guru_image_path": self.path_guru_var.get().strip(),
             "guru_name": self.name_guru_var.get().strip(),
-            "guru_width_cm": self.portrait_geo["width_guru"],
-            "offset_x_guru_cm": self.portrait_geo["offx_guru"],
-            "offset_y_guru_cm": self.portrait_geo["offy_guru"],
 
             "enabled_stempel": self.enable_stempel_var.get(),
             "stempel_image_path": self.path_stempel_var.get().strip(),
             "stempel_name": self.name_stempel_var.get().strip(),
-            "stempel_width_cm": self.portrait_geo["width_stempel"],
-            "offset_x_stempel_cm": self.portrait_geo["offx_stempel"],
-            "offset_y_stempel_cm": self.portrait_geo["offy_stempel"],
 
             "alignment": self.alignment_var.get(),
             "behind_text": self.behind_text_var.get(),
             "spacing_before_pt": 2,
             "spacing_after_pt": 2,
-            "landscape": {
-                "kepala_width_cm": self.landscape_geo["width_kepala"],
-                "offset_x_kepala_cm": self.landscape_geo["offx_kepala"],
-                "offset_y_kepala_cm": self.landscape_geo["offy_kepala"],
-                "guru_width_cm": self.landscape_geo["width_guru"],
-                "offset_x_guru_cm": self.landscape_geo["offx_guru"],
-                "offset_y_guru_cm": self.landscape_geo["offy_guru"],
-                "stempel_width_cm": self.landscape_geo["width_stempel"],
-                "offset_x_stempel_cm": self.landscape_geo["offx_stempel"],
-                "offset_y_stempel_cm": self.landscape_geo["offy_stempel"],
-            }
+            "landscape": self.landscape_geo.to_settings_dict(),
         })
+        new_settings.update(self.portrait_geo.to_settings_dict())
 
         save_signature_settings(new_settings)
         if self.on_save_callback:

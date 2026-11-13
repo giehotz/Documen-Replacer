@@ -73,5 +73,25 @@
     "Jenjang Pendidikan",
     "Tingkat Sekolah",
     "Jenjang"
+  ],
+  "Mata Pelajaran": [
+    "Mata Pelajaran",
+    "Mapel",
+    "Muatan Pelajaran",
+    "Mata Uji",
+    "Nama Mata Pelajaran",
+    "Bidang Studi"
+  ],
+  "Fase / Kelas": [
+    "Fase / Kelas",
+    "Fase, Kelas / Semester",
+    "Fase/Kelas",
+    "Fase Kelas",
+    "Fase",
+    "Kelas",
+    "Kelas / Semester",
+    "Kelas/Semester",
+    "Tingkat Kelas",
+    "Rombel"
   ]
 }

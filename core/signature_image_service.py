@@ -391,16 +391,6 @@ def predict_signature_layout(doc_path: str) -> Dict[str, Any]:
     return res
 
 
-def save_signature_settings(settings: Dict[str, Any], config_path: str = "") -> None:
-    """Menyimpan pengaturan tanda tangan ke berkas JSON."""
-    if not config_path:
-        config_path = get_default_config_path()
-
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
-    with open(config_path, "w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=2, ensure_ascii=False)
-
-
 def insert_signature_picture(
     paragraph,
     image_path: str,

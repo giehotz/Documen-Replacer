@@ -45,10 +45,6 @@
     "pertemuan ke"
   ],
   "global_ignore_exact": [
-    "kelas",
-    "fase",
-    "mata pelajaran",
-    "mapel",
     "topik",
     "tema",
     "unit",
@@ -521,6 +517,67 @@
       "exact_only_synonyms": [],
       "never_match": [],
       "notes": "Jenjang sekolah/madrasah (SD/MI, SMP/MTs, SMA/MA)."
+    },
+    {
+      "id": "mata_pelajaran",
+      "category": "Mata Pelajaran",
+      "display_label": "Mata Pelajaran",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "mata pelajaran",
+        "mapel",
+        "muatan pelajaran",
+        "mata uji",
+        "nama mata pelajaran",
+        "mata pelajaran anda",
+        "mata pelajaran modul",
+        "bidang studi"
+      ],
+      "exact_only_synonyms": [],
+      "never_match": [
+        "mata pelajaran siswa",
+        "guru mata pelajaran",
+        "pendidik mapel"
+      ],
+      "notes": "Nama mata pelajaran (IPAS, PJOK, Bahasa Indonesia, Matematika, dll.)."
+    },
+    {
+      "id": "fase_kelas",
+      "category": "Fase / Kelas",
+      "display_label": "Fase / Kelas",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": [
+        "fase kelas",
+        "fase kelas semester",
+        "fase dan kelas",
+        "tingkat kelas",
+        "kelas semester"
+      ],
+      "exact_only_synonyms": [
+        "fase",
+        "kelas",
+        "tingkat",
+        "rombel",
+        "rombongan belajar"
+      ],
+      "never_match": [
+        "wali kelas",
+        "guru kelas",
+        "ruang kelas",
+        "jumlah kelas",
+        "ketua kelas",
+        "asesmen",
+        "diagnosis",
+        "rubrik",
+        "instrumen",
+        "lkpd",
+        "lembar kerja"
+      ],
+      "notes": "Tingkat fase dan kelas dokumen (contoh: 'Fase B / Kelas IV', 'Fase A / Kelas 1', 'IIA', 'IIa', dll.)."
     }
   ]
 }

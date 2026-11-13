@@ -273,25 +273,33 @@ Documen-Replacer/
 ├── docs/                                   # Dokumentasi Teknis & Rancangan
 │   └── fiturtambahan/                      # Spesifikasi fitur lanjutan & PySide6 roadmap
 │
-├── tests/                                  # Unit Test Suite Otomatis (70 Tests)
+├── tests/                                  # Unit Test Suite Otomatis (98 Tests, 4 Skipped)
+│   ├── test_anti_blind_replacement.py     # 3 tests pencegahan penggantian buta placeholder tanpa label
+│   ├── test_change_verifier.py            # 4 tests verifikasi kepatuhan, laporan JSON & deteksi anomali
 │   ├── test_dictionary_corpus.py          # 13 tests korpus kamus lengkap, variasi kurung & anti-overwrite
-│   ├── test_doc_compat.py                  # 6 tests dukungan format .doc & konversi transparan
-│   ├── test_document_predictor.py          # 7 tests prediksi dokumen & smart merge
-│   ├── test_field_dictionary.py            # 10 tests FieldDictionary, dialog & validasi lunak
-│   ├── test_pdf_converter.py               # 10 tests pemindai & konversi PDF
-│   └── test_smart_engine.py                # 24 tests mesin penggantian, TTD, & orientasi
+│   ├── test_doc_compat.py                 # 6 tests dukungan format .doc & konversi transparan
+│   ├── test_document_predictor.py         # 7 tests prediksi dokumen & smart merge
+│   ├── test_field_dictionary.py           # 10 tests FieldDictionary, dialog & validasi lunak
+│   ├── test_modul_ajar_context.py         # 3 tests pengenalan konteks Modul Ajar & multi-paragraf
+│   ├── test_overlapping_proposals.py      # 2 tests pencegahan konflik usulan tumpang tindih
+│   ├── test_pdf_converter.py              # 9 tests pemindai berkas & konversi Word ke PDF batch
+│   ├── test_signature_library.py          # 4 tests pustaka tanda tangan & persistensi profil
+│   ├── test_signature_multi_image.py      # 2 tests dukungan multi-gambar TTD & stempel
+│   ├── test_signature_prediction.py       # 3 tests prediksi dan resolusi slot tanda tangan tabel
+│   ├── test_smart_engine.py               # 25 tests mesin penggantian, TTD, & orientasi
+│   └── test_year_replacement.py           # 7 tests golden cases penggantian tahun ajaran
 │
 ├── Jalankan_Smart_RPP_Replacer.bat        # Launcher sekali klik Windows
-├── main.py                                 # Entry point utama aplikasi
-├── requirements.txt                        # Daftar pin dependensi pip
-└── README.md                               # Dokumentasi panduan ini
+├── main.py                                # Entry point utama aplikasi
+├── requirements.txt                       # Daftar pin dependensi pip
+└── README.md                              # Dokumentasi panduan ini
 ```
 
 ---
 
 ## 🧪 Pengujian & Verifikasi (Test Suite)
 
-Aplikasi memiliki **70 unit test otomatis** dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
+Aplikasi memiliki **98 unit test otomatis** (dengan 4 pengujian di-skip pada lingkungan tanpa Microsoft Word COM / LibreOffice) dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
 
 Untuk menjalankan seluruh unit test suite:
 ```powershell
@@ -300,17 +308,19 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Hasil uji yang diharapkan:
 ```text
-Ran 70 tests in ~45s
-OK
+Ran 98 tests in ~35s
+OK (skipped=4)
 ```
 
 ### Rincian Cakupan Pengujian:
 * **Korpus Kamus Lengkap & Variasi Tanda Kurung:** Resolusi 10 field standar dengan variasi tanda kurung `()`, `[]`, `{}`, instruksi template `[... Anda]`, deteksi placeholder tanda tangan `(__________________________)`, pola titimangsa titik-titik, dan proteksi label campuran berbahaya agar tidak tertimpa.
 * **Kamus Field & Sinonim:** Resolusi 10 field standar, proteksi kata jebakan (*never_match*), benturan sinonim pengguna, persistensi user dictionary, dan validasi nilai lunak (*soft warning*).
+* **Anti-Blind Replacement & Isolasi Konteks:** Memastikan placeholder generik (`_____`) tidak diganti secara buta jika bukan bagian dari label field yang bersangkutan.
+* **Verifikasi Perubahan & Laporan Audit:** Laporan verifikasi JSON berstruktur lengkap dengan ringkasan eksekutif, deteksi anomali tahun awalan ganda, dan hashing integritas dokumen.
 * **Kompatibilitas Dokumen .doc & .docx:** Konversi transparan format lama Word 97-2003 (.doc) ke (.docx) via Word COM / LibreOffice, pembacaan instan via `load_document`, dan penyimpanan kembali.
 * **Prediksi Dokumen:** Analisis tabel identitas (1-kolom, 2-kolom, 3-kolom), deteksi format placeholder konkret, penggabungan variasi unik (*smart merge*), dan pengumpulan label tak dikenal (*unknown labels*).
 * **Penggantian Teks:** Exact match, fuzzy matching, case sensitivity, pengenalan label, preservasi style bold/italic/underline pada run Word.
-* **Tanda Tangan Digital:** Penyisipan gambar *behind text*, offset X/Y potrait vs lanskap, persistensi pengaturan JSON, dan pencegahan double counting.
+* **Tanda Tangan Digital & Multi-Gambar:** Penyisipan gambar *behind text*, offset X/Y potrait vs lanskap, persistensi pengaturan JSON, penyisipan terpisah tanda tangan kepala/guru dan stempel madrasah, serta eliminasi double-counting.
 * **Keamanan Dokumen:** Penyimpanan atomik berkas (`tempfile.mkstemp` + `os.replace`), pengabaian berkas sementara `~$`, dan proteksi type-safety.
 * **Konverter PDF:** Pemindaian berkas, filter ekstensi, preservasi struktur subfolder, penomoran benturan nama, serta konversi riil dokumen `.docx` ke `.pdf` valid dengan header `%PDF`.
 

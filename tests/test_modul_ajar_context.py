@@ -104,6 +104,41 @@ class TestModulAjarContext(unittest.TestCase):
         self.assertNotIn("Nama Madrasah", categories)
         self.assertNotIn("Jenjang Sekolah", categories)
 
+    def test_mapel_and_fase_kelas_replacement(self):
+        """Memastikan Mata Pelajaran dan Fase / Kelas terdeteksi dan diganti dengan tepat."""
+        if not os.path.isfile(self.bab5_path):
+            self.skipTest(f"Berkas tidak ditemukan: {self.bab5_path}")
+
+        rules = [
+            {"label": "Mata Pelajaran", "new": "IPAS"},
+            {"label": "Fase / Kelas", "new": "Fase B / Kelas IV"},
+        ]
+        items = self.engine.plan_document_changes(self.bab5_path, "BAB 5", rules, mode="GABUNGAN")
+
+        categories = {it.category for it in items}
+        self.assertIn("Mata Pelajaran", categories)
+        self.assertIn("Fase / Kelas", categories)
+
+        # Di cover (Tabel 0)
+        t0_mapel = [it for it in items if it.category == "Mata Pelajaran" and "Tabel Identitas #0" in it.location_info]
+        self.assertEqual(len(t0_mapel), 1)
+        self.assertEqual(t0_mapel[0].new_text, "IPAS")
+
+        t0_fase = [it for it in items if it.category == "Fase / Kelas" and "Tabel Identitas #0" in it.location_info]
+        self.assertEqual(len(t0_fase), 1)
+        self.assertEqual(t0_fase[0].new_text, "Fase B / Kelas IV")
+
+        # Di tabel modul (Tabel 1)
+        t1_mapel = [it for it in items if it.category == "Mata Pelajaran" and "Tabel Identitas #1" in it.location_info]
+        self.assertEqual(len(t1_mapel), 1)
+        self.assertEqual(t1_mapel[0].old_text, "Bahasa Indonesia")
+        self.assertEqual(t1_mapel[0].new_text, "IPAS")
+
+        t1_fase = [it for it in items if it.category == "Fase / Kelas" and "Tabel Identitas #1" in it.location_info]
+        self.assertEqual(len(t1_fase), 1)
+        self.assertEqual(t1_fase[0].old_text, "A / II (Dua)")
+        self.assertEqual(t1_fase[0].new_text, "Fase B / Kelas IV")
+
 
 if __name__ == "__main__":
     unittest.main()

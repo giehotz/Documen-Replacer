@@ -39,14 +39,21 @@ POSITIF = {
     "[Nama Sekolah Anda]": "nama_lembaga",
     "[Tempat], [Tanggal]": "titimangsa",
     "(Guru Mata Pelajaran)": "nama_guru",
+    "Mata Pelajaran": "mata_pelajaran",
+    "Mapel": "mata_pelajaran",
+    "Fase / Kelas": "fase_kelas",
+    "Fase, Kelas / Semester": "fase_kelas",
+    "Kelas": "fase_kelas",
+    "Fase": "fase_kelas",
+    "Kelas / Semester": "fase_kelas",
 }
 
 NEGATIF = [
     "Output", "Setup", "Tanggal Lahir Siswa", "Tempat Tanggal Lahir", "Jumlah Guru", "Alokasi Waktu", "", "....",
-    "Kelas / Semester", "Kelas", "Mata Pelajaran", "Penilaian Akhir Semester", "Program Semester",
+    "Penilaian Akhir Semester", "Program Semester",
     "Kegiatan Guru", "Kegiatan Siswa", "Nama Siswa", "Alamat Sekolah", "Wakil Kepala Madrasah", "Tenaga Pendidik",
-    "Peserta Didik", "Tahun Lahir", "Tempat Tinggal", "Guru", "Tahun", "Tempat", "Kepala", "Tema", "Fase",
-    "Capaian Pembelajaran", "Pertemuan ke",
+    "Peserta Didik", "Tahun Lahir", "Tempat Tinggal", "Guru", "Tahun", "Tempat", "Kepala", "Tema",
+    "Capaian Pembelajaran", "Pertemuan ke", "Ruang Kelas", "Jumlah Kelas",
 ]
 
 
@@ -88,7 +95,7 @@ class TestKorpusKamus(unittest.TestCase):
         self.assertGreaterEqual(score, 0.85)
         cat, _, _ = find_fuzzy_category_match("Thn Pelajaran", self.aliases, threshold=0.80)
         self.assertEqual(cat, "Tahun Ajaran")
-        for label in ("Tanggal Lahir Siswa", "Kelas / Semester", "Penilaian Akhir Semester",
+        for label in ("Tanggal Lahir Siswa", "Ruang Kelas", "Penilaian Akhir Semester",
                       "Wakil Kepala Madrasah", "Alamat Sekolah"):
             with self.subTest(label=label):
                 self.assertIsNone(find_fuzzy_category_match(label, self.aliases, threshold=0.80)[0])

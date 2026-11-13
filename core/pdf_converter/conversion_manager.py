@@ -11,6 +11,7 @@ import logging
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Callable, Set
 
+from core.doc_compat_service import is_supported_word_file
 from core.pdf_converter.base import BasePdfConverter
 from core.pdf_converter.word_com_engine import WordComConverter
 from core.pdf_converter.libreoffice_engine import LibreOfficeConverter
@@ -121,13 +122,7 @@ class PdfConversionManager:
         items.sort(key=lambda it: it.rel_path.lower())
         return items
 
-    @staticmethod
-    def _is_supported_word_file(filename: str) -> bool:
-        """Memvalidasi apakah berkas merupakan dokumen Word yang didukung."""
-        if filename.startswith("~$") or filename.startswith("."):
-            return False
-        ext = os.path.splitext(filename)[1].lower()
-        return ext in (".docx", ".doc")
+    _is_supported_word_file = staticmethod(is_supported_word_file)
 
     def prepare_targets(
         self,

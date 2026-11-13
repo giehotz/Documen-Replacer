@@ -373,6 +373,31 @@ class SmartRPPReplacerApp:
 
         self.msg_queue.put(("show_preview", (all_plan_items, files, out_dir, failed_planning_rels)))
 
+    def _generate_change_report(
+        self,
+        out_dir: str,
+        files: List[Tuple[str, str]],
+        plan_items: List[ReplacementPlanItem],
+        rules: List[Dict[str, str]],
+        mode: str,
+    ) -> None:
+        """Menerbitkan Laporan Perubahan JSON Lengkap dan menyimpannya ke report_service."""
+        try:
+            from core.change_verifier import ChangeReportGenerator
+            input_dir = os.path.dirname(files[0][0]) if files else out_dir
+            generator = ChangeReportGenerator(anonymize_pii=False)
+            json_path, report_data = generator.generate_report(
+                output_dir=out_dir,
+                input_dir=input_dir,
+                plan_items=plan_items,
+                rules=rules,
+                mode=mode,
+            )
+            self.report_service.set_verification_report(json_path, report_data.get("ringkasan", {}))
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Diterbitkan ke: {json_path}"))
+        except Exception as e:
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Catatan: {e}"))
+
     def _worker_apply(
         self,
         files: List[Tuple[str, str]],
@@ -430,23 +455,9 @@ class SmartRPPReplacerApp:
             self.msg_queue.put(("progress", idx))
 
         # Terbitkan Laporan Perubahan JSON Lengkap
-        try:
-            from core.change_verifier import ChangeReportGenerator
-            input_dir = os.path.dirname(files[0][0]) if files else out_dir
-            generator = ChangeReportGenerator(anonymize_pii=False)
-            rules_used = self.view_replacement.get_rules() if hasattr(self, "view_replacement") else []
-            mode_used = self.view_replacement.get_mode() if hasattr(self, "view_replacement") else "GABUNGAN"
-            json_path, report_data = generator.generate_report(
-                output_dir=out_dir,
-                input_dir=input_dir,
-                plan_items=plan_items,
-                rules=rules_used,
-                mode=mode_used
-            )
-            self.report_service.set_verification_report(json_path, report_data.get("ringkasan", {}))
-            self.msg_queue.put(("log", f"[LAPORAN JSON] Diterbitkan ke: {json_path}"))
-        except Exception as e:
-            self.msg_queue.put(("log", f"[LAPORAN JSON] Catatan: {e}"))
+        rules_used = self.replacement_view.get_rules()
+        mode_used = self.replacement_view.get_search_mode()
+        self._generate_change_report(out_dir, files, plan_items, rules_used, mode_used)
 
         self.report_service.write_report_file(out_dir)
         self.msg_queue.put(("done", out_dir))
@@ -495,21 +506,7 @@ class SmartRPPReplacerApp:
             self.msg_queue.put(("progress", idx))
 
         # Terbitkan Laporan Perubahan JSON untuk mode langsung
-        try:
-            from core.change_verifier import ChangeReportGenerator
-            input_dir = os.path.dirname(files[0][0]) if files else out_dir
-            generator = ChangeReportGenerator(anonymize_pii=False)
-            json_path, report_data = generator.generate_report(
-                output_dir=out_dir,
-                input_dir=input_dir,
-                plan_items=all_direct_plan_items,
-                rules=rules,
-                mode=mode
-            )
-            self.report_service.set_verification_report(json_path, report_data.get("ringkasan", {}))
-            self.msg_queue.put(("log", f"[LAPORAN JSON] Diterbitkan ke: {json_path}"))
-        except Exception as e:
-            self.msg_queue.put(("log", f"[LAPORAN JSON] Catatan: {e}"))
+        self._generate_change_report(out_dir, files, all_direct_plan_items, rules, mode)
 
         self.report_service.write_report_file(out_dir)
         self.msg_queue.put(("done", out_dir))

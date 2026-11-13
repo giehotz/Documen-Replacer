@@ -31,9 +31,9 @@ def is_docx_format(path: str) -> bool:
 
 
 def is_supported_word_file(path: str) -> bool:
-    """Memeriksa apakah berkas merupakan dokumen Word (.doc atau .docx) dan bukan berkas sementara (~$)."""
+    """Memeriksa apakah berkas merupakan dokumen Word (.doc atau .docx) dan bukan berkas sementara (~$) atau berkas tersembunyi (.)."""
     base = os.path.basename(path)
-    if base.startswith("~$"):
+    if base.startswith("~$") or base.startswith("."):
         return False
     lower = base.lower()
     return lower.endswith(".docx") or lower.endswith(".doc")

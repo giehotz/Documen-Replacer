@@ -47,15 +47,12 @@ def load_aliases(config_path: str = "") -> Dict[str, List[str]]:
         "Tahun Ajaran": ["Tahun Pelajaran", "Tahun Ajaran", "TP", "Th. Pelajaran"],
         "Semester": ["Semester", "Semester Ganjil", "Semester Genap", "Smt"],
         "Titimangsa": ["Titimangsa", "Tempat, Tanggal", "Tanggal Pengesahan", "Tanggal"],
+        "Mata Pelajaran": ["Mata Pelajaran", "Mapel", "Muatan Pelajaran", "Mata Uji", "Nama Mata Pelajaran", "Bidang Studi"],
+        "Fase / Kelas": ["Fase / Kelas", "Fase, Kelas / Semester", "Fase", "Kelas", "Kelas / Semester", "Tingkat Kelas", "Rombel"],
     }
 
 
-def normalize_string(text: str) -> str:
-    """Membersihkan dan menormalkan teks (lowercase, hilangkan tanda baca tertentu & kurung, spasi tunggal)."""
-    t = text.lower()
-    t = re.sub(r"[:\.\-_/()\[\]{}]", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
+from core.text_norm import normalize_string
 
 
 def match_category(text: str, aliases: Optional[Dict[str, List[str]]] = None) -> Optional[str]:

@@ -42,6 +42,8 @@ class ReplacementView(ttk.LabelFrame):
         self.default_fields = [
             ("Nama Sekolah/Madrasah", "SD Negeri 1 Contoh", "MIN 1 Contoh"),
             ("Istilah Jabatan Kepala", "Kepala Sekolah", "Kepala Madrasah"),
+            ("Mata Pelajaran", "", "IPAS"),
+            ("Fase / Kelas", "", "Fase B / Kelas IV"),
             ("Tahun Ajaran", "2025/2026", "2026/2027"),
             ("Semester", "Ganjil", "Genap"),
             ("Nama Kepala Madrasah", "", "Ahmad Dahlan, M.Pd"),
