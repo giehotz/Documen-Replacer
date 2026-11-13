@@ -429,10 +429,30 @@ class SmartRPPReplacerApp:
 
             self.msg_queue.put(("progress", idx))
 
+        # Terbitkan Laporan Perubahan JSON Lengkap
+        try:
+            from core.change_verifier import ChangeReportGenerator
+            input_dir = os.path.dirname(files[0][0]) if files else out_dir
+            generator = ChangeReportGenerator(anonymize_pii=False)
+            rules_used = self.view_replacement.get_rules() if hasattr(self, "view_replacement") else []
+            mode_used = self.view_replacement.get_mode() if hasattr(self, "view_replacement") else "GABUNGAN"
+            json_path, report_data = generator.generate_report(
+                output_dir=out_dir,
+                input_dir=input_dir,
+                plan_items=plan_items,
+                rules=rules_used,
+                mode=mode_used
+            )
+            self.report_service.set_verification_report(json_path, report_data.get("ringkasan", {}))
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Diterbitkan ke: {json_path}"))
+        except Exception as e:
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Catatan: {e}"))
+
         self.report_service.write_report_file(out_dir)
         self.msg_queue.put(("done", out_dir))
 
     def _worker_direct(self, files: List[Tuple[str, str]], out_dir: str, rules: List[Dict[str, str]], mode: str, case_sensitive: bool, skip_low: bool):
+        all_direct_plan_items: List[ReplacementPlanItem] = []
         for idx, (full, rel) in enumerate(files, 1):
             root_name, ext = os.path.splitext(rel)
             out_rel = (root_name + ".docx") if ext.lower() == ".doc" else rel
@@ -451,6 +471,7 @@ class SmartRPPReplacerApp:
                         it.is_approved = True
                         cat_breakdown[it.category] = cat_breakdown.get(it.category, 0) + 1
                     approved.append(it)
+                all_direct_plan_items.extend(approved)
 
                 if any(it.is_approved for it in approved):
                     changes = self.engine.apply_approved_changes(full, out_file, approved)
@@ -472,6 +493,23 @@ class SmartRPPReplacerApp:
                 self.msg_queue.put(("log", f"[GAGAL] {disp_rel} -> {e}"))
 
             self.msg_queue.put(("progress", idx))
+
+        # Terbitkan Laporan Perubahan JSON untuk mode langsung
+        try:
+            from core.change_verifier import ChangeReportGenerator
+            input_dir = os.path.dirname(files[0][0]) if files else out_dir
+            generator = ChangeReportGenerator(anonymize_pii=False)
+            json_path, report_data = generator.generate_report(
+                output_dir=out_dir,
+                input_dir=input_dir,
+                plan_items=all_direct_plan_items,
+                rules=rules,
+                mode=mode
+            )
+            self.report_service.set_verification_report(json_path, report_data.get("ringkasan", {}))
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Diterbitkan ke: {json_path}"))
+        except Exception as e:
+            self.msg_queue.put(("log", f"[LAPORAN JSON] Catatan: {e}"))
 
         self.report_service.write_report_file(out_dir)
         self.msg_queue.put(("done", out_dir))

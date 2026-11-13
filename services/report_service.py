@@ -20,6 +20,13 @@ class ReportService:
         self.failed = 0
         self.category_counts: Dict[str, int] = {}
         self.file_details: List[Dict[str, Any]] = []
+        self.json_report_path: str = ""
+        self.verification_summary: Dict[str, Any] = {}
+
+    def set_verification_report(self, json_path: str, summary: Dict[str, Any]):
+        """Menyimpan referensi berkas laporan JSON dan ringkasan vonis verifikasi."""
+        self.json_report_path = json_path
+        self.verification_summary = summary or {}
 
     def record_document(
         self,

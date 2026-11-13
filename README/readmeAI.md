@@ -35,6 +35,7 @@ d:\docomen_replacer\
 │   ├── signature_image_service.py # Penempatan XML gambar w:drawing behind text (3 gambar)
 │   ├── validation_engine.py    # Perhitungan confidence score (HIGH/MEDIUM/LOW) & validasi
 │   ├── replacement_engine.py   # Orkestrator utama alur: plan_document_changes & apply_approved_changes
+│   ├── change_verifier.py      # Verifikasi mekanis/semantik & generator laporan perubahan JSON
 │   └── pdf_converter/          # Subpaket Konversi Dokumen Word ke PDF
 │       ├── __init__.py         # Ekspor ConversionManager, ConversionStatus, dll.
 │       ├── base.py             # BaseConverter interface & kelas data opsi konversi
@@ -74,10 +75,13 @@ d:\docomen_replacer\
 ├── signatures/                 # Pustaka Gambar Tanda Tangan & Stempel Pengguna
 │   └── .gitkeep                # Hanya .gitkeep yang di-commit (gambar dilindungi .gitignore)
 │
-├── tests/                      # Suite Pengujian Otomatis (79 Tests Wajib Lulus)
+├── tests/                      # Suite Pengujian Otomatis (92 Tests Wajib Lulus)
 │   ├── __init__.py
 │   ├── generate_samples.py     # Generator dokumen sampel uji .docx
-│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (17 test)
+│   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (25 test)
+│   ├── test_year_replacement.py # Uji coba 7 kasus golden test pola tahun (7 test)
+│   ├── test_overlapping_proposals.py # Uji resolusi konflik usulan tumpang tindih (2 test)
+│   ├── test_change_verifier.py # Uji verifikasi mekanis/semantik & laporan JSON (4 test)
 │   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label (13 test)
 │   ├── test_dictionary_corpus.py # Uji akurasi deteksi kamus terhadap korpus nyata (13 test)
 │   ├── test_document_predictor.py # Uji coba prediksi field & auto-fill aturan (7 test)
@@ -93,6 +97,7 @@ d:\docomen_replacer\
 │
 ├── docs/                       # Dokumentasi Internal & Spesifikasi (diabaikan .gitignore)
 │   ├── DESAIN_GUI_REDESIGN.md  # Blueprint spesifikasi desain ulang antarmuka dashboard
+│   ├── RANCANGAN_OUTPUT_LAPORAN_PERUBAHAN.md # Spesifikasi laporan perubahan & perbaikan bug
 │   └── REVIEW*.md              # Catatan audit arsitektur kode, kepatuhan PII, & mitigasi bug
 │
 ├── README/                     # PANDUAN INI (Untuk AI Agent)
@@ -158,7 +163,7 @@ Setiap agen AI yang bekerja di repositori ini **WAJIB** mematuhi aturan ketat be
   python -m unittest discover tests
   ```
 * **JANGAN** menggunakan perintah `pytest` secara langsung di shell tanpa memastikan lingkungan virtual terpasang, karena lingkungan host mungkin hanya memiliki pustaka standar Python.
-* **Invarian Uji**: Seluruh **79 test** harus berstatus **OK (100% Pass)** sebelum perubahan dianggap selesai.
+* **Invarian Uji**: Seluruh **92 test** harus berstatus **OK (100% Pass)** sebelum perubahan dianggap selesai.
 
 ---
 
@@ -258,7 +263,7 @@ You must adhere strictly to these non-negotiable rules:
 
 4. VERIFICATION COMMAND:
    - Run tests using: python -m unittest discover tests
-   - All 79+ tests must pass before concluding any task.
+   - All 92+ tests must pass before concluding any task.
 
 5. ATOMIC WRITES:
    - Always write edited docx files atomically using tempfile.mkstemp and os.replace.

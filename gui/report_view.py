@@ -38,6 +38,22 @@ class ReportDialog(tk.Toplevel):
             foreground="#555555"
         ).pack(anchor="w", pady=(2, 0))
 
+        v_summary = self.report_service.verification_summary
+        if v_summary:
+            v_dict = v_summary.get("verdict", {})
+            ok_cnt = v_dict.get("OK", 0)
+            periksa_cnt = v_dict.get("PERIKSA", 0)
+            salah_cnt = v_dict.get("SALAH", 0)
+
+            v_frame = ttk.Frame(header)
+            v_frame.pack(anchor="w", pady=(4, 0))
+            ttk.Label(v_frame, text="Audit Kualitas Verifikasi: ", font=("Segoe UI", 9, "bold")).pack(side="left")
+            ttk.Label(v_frame, text=f"OK: {ok_cnt}", foreground="#007700", font=("Segoe UI", 9, "bold")).pack(side="left", padx=4)
+            if periksa_cnt > 0:
+                ttk.Label(v_frame, text=f"PERIKSA: {periksa_cnt}", foreground="#b38600", font=("Segoe UI", 9, "bold")).pack(side="left", padx=4)
+            if salah_cnt > 0:
+                ttk.Label(v_frame, text=f"SALAH: {salah_cnt}", foreground="#cc0000", font=("Segoe UI", 9, "bold")).pack(side="left", padx=4)
+
         # 2. Kartu Ringkasan Metrik
         metrics_frame = ttk.LabelFrame(self, text=" Ringkasan Dokumen ", padding=10)
         metrics_frame.pack(fill="x", padx=14, pady=5)
@@ -88,7 +104,14 @@ class ReportDialog(tk.Toplevel):
         bottom.pack(fill="x")
 
         ttk.Button(bottom, text="Buka Folder Hasil", command=self._open_folder).pack(side="left", padx=(0, 6))
-        ttk.Button(bottom, text="Buka File Laporan (.txt)", command=self._open_report_file).pack(side="left")
+        ttk.Button(bottom, text="Buka File Laporan (.txt)", command=self._open_report_file).pack(side="left", padx=(0, 6))
+
+        if self.report_service.json_report_path:
+            ttk.Button(
+                bottom,
+                text="📄 Buka Laporan JSON",
+                command=self._open_json_report_file
+            ).pack(side="left")
 
         ttk.Button(bottom, text="Tutup", command=self.destroy).pack(side="right")
 
@@ -107,3 +130,13 @@ class ReportDialog(tk.Toplevel):
                 messagebox.showwarning("Gagal Membuka Laporan", f"Tidak dapat membuka file laporan:\n{e}")
         else:
             messagebox.showinfo("Laporan", "Berkas laporan belum tersedia di folder output.")
+
+    def _open_json_report_file(self):
+        json_path = self.report_service.json_report_path
+        if json_path and os.path.isfile(json_path):
+            try:
+                open_path(json_path)
+            except Exception as e:
+                messagebox.showwarning("Gagal Membuka Laporan JSON", f"Tidak dapat membuka berkas JSON:\n{e}")
+        else:
+            messagebox.showinfo("Laporan JSON", "Berkas laporan perubahan JSON belum tersedia.")
