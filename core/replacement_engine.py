@@ -165,6 +165,8 @@ class ReplacementEngine:
             text = get_paragraph_text(p)
             for m in pattern.finditer(text):
                 old_match = m.group(0)
+                if is_pure_placeholder(old_match):
+                    continue  # Anti-blind replacement: pure placeholders cannot be globally replaced without a label!
                 key = old_match if is_cs else old_match.lower()
                 new_val = mapping.get(key, [""])[0]
                 if new_val:
@@ -209,6 +211,8 @@ class ReplacementEngine:
                         text = get_paragraph_text(p)
                         for m in pattern.finditer(text):
                             old_match = m.group(0)
+                            if is_pure_placeholder(old_match):
+                                continue  # Anti-blind replacement: pure placeholders cannot be globally replaced without a label!
                             key = old_match if is_cs else old_match.lower()
                             new_val = mapping.get(key, [""])[0]
                             if new_val:
@@ -524,8 +528,6 @@ class ReplacementEngine:
             for r_idx, row in enumerate(table.rows):
                 cells = row.cells
                 num_c = len(cells)
-                label_text = ""
-                target_col = -1
 
                 if num_c == 1:
                     cell = cells[0]
@@ -534,76 +536,201 @@ class ReplacementEngine:
                         extracted = extract_label_and_placeholder(text)
                         if extracted:
                             label_pfx, placeholder_str, start_pos, end_pos = extracted
-                            matched_cat = match_category(label_pfx, self.aliases)
+                            clean_label = label_pfx.rstrip(": \t")
+                            matched_cat = match_category(clean_label, self.aliases) or match_category(label_pfx, self.aliases)
                             conf = ConfidenceLevel.HIGH
                             if not matched_cat:
-                                f_cat, f_score, _ = find_fuzzy_category_match(label_pfx, self.aliases, threshold=0.80)
+                                f_cat, f_score, _ = find_fuzzy_category_match(clean_label, self.aliases, threshold=0.80)
                                 if f_cat:
                                     matched_cat = f_cat
                                     conf = ConfidenceLevel.MEDIUM if f_score >= 0.90 else ConfidenceLevel.LOW
+
+                            new_val = ""
                             if matched_cat and matched_cat in target_values:
                                 new_val = target_values[matched_cat].strip()
-                                if new_val:
-                                    items.append(ReplacementPlanItem(
-                                        doc_path=in_path,
-                                        rel_path=rel_path,
-                                        category=matched_cat,
-                                        old_text=placeholder_str,
-                                        new_text=new_val,
-                                        confidence=conf,
-                                        location_info=f"Tabel Identitas #{t_idx} Baris #{r_idx} (Inline)",
-                                        is_approved=(conf != ConfidenceLevel.LOW),
-                                        target_type="TABLE_CELL_SPAN",
-                                        target_meta={
-                                            "table_idx": t_idx,
-                                            "row_idx": r_idx,
-                                            "col_idx": 0,
-                                            "para_idx": p_sub_idx,
-                                            "start": start_pos,
-                                            "end": end_pos,
-                                            "original_text": text,
-                                        }
-                                    ))
+                            elif matched_cat == "Tahun Penyusunan" and "Tahun Ajaran" in target_values:
+                                new_val = target_values["Tahun Ajaran"].strip()
+                            elif matched_cat == "Tahun Ajaran" and "Tahun Penyusunan" in target_values:
+                                new_val = target_values["Tahun Penyusunan"].strip()
+
+                            if matched_cat and new_val:
+                                items.append(ReplacementPlanItem(
+                                    doc_path=in_path,
+                                    rel_path=rel_path,
+                                    category=matched_cat,
+                                    old_text=placeholder_str,
+                                    new_text=new_val,
+                                    confidence=conf,
+                                    location_info=f"Tabel Identitas #{t_idx} Baris #{r_idx} (Inline)",
+                                    is_approved=(conf != ConfidenceLevel.LOW),
+                                    target_type="TABLE_CELL_SPAN",
+                                    target_meta={
+                                        "table_idx": t_idx,
+                                        "row_idx": r_idx,
+                                        "col_idx": 0,
+                                        "para_idx": p_sub_idx,
+                                        "start": start_pos,
+                                        "end": end_pos,
+                                        "original_text": text,
+                                    }
+                                ))
                     continue
-                elif num_c == 2:
-                    label_text = cells[0].text.strip()
+
+                # Kasus num_c >= 2
+                if num_c == 2:
                     target_col = 1
-                elif num_c >= 3 and cells[1].text.strip() == ":":
-                    label_text = cells[0].text.strip()
-                    target_col = 2
+                elif num_c >= 3:
+                    c1_clean = [p.text.strip() for p in cells[1].paragraphs if p.text.strip()]
+                    if c1_clean and all(t == ":" for t in c1_clean):
+                        target_col = 2
+                    elif cells[1].text.strip().startswith(":"):
+                        target_col = 2
+                    else:
+                        target_col = num_c - 1
                 else:
                     continue
 
-                if not label_text or target_col == -1:
+                p0_non_empty = [(idx, p.text.strip(), p) for idx, p in enumerate(cells[0].paragraphs) if p.text.strip()]
+                pt_non_empty = [(idx, p.text.strip(), p) for idx, p in enumerate(cells[target_col].paragraphs) if p.text.strip()]
+
+                if len(p0_non_empty) > 1 and pt_non_empty:
+                    # KASUS: Tabel Multi-Paragraf (seperti A. IDENTITAS MODUL pada Modul Ajar)
+                    pair_count = min(len(p0_non_empty), len(pt_non_empty))
+                    for k in range(pair_count):
+                        p0_idx, label_text, label_p = p0_non_empty[k]
+                        pt_idx, val_text, val_p = pt_non_empty[k]
+
+                        clean_label = label_text.rstrip(": \t")
+                        if not clean_label or len(clean_label) > 40 or len(clean_label.split()) > 6:
+                            continue
+
+                        matched_cat = match_category(clean_label, self.aliases) or match_category(label_text, self.aliases)
+                        conf = ConfidenceLevel.HIGH
+
+                        if not matched_cat:
+                            f_cat, f_score, _ = find_fuzzy_category_match(clean_label, self.aliases, threshold=0.80)
+                            if f_cat:
+                                matched_cat = f_cat
+                                conf = ConfidenceLevel.MEDIUM if f_score >= 0.90 else ConfidenceLevel.LOW
+
+                        if not matched_cat:
+                            continue
+
+                        new_val = ""
+                        if matched_cat in target_values:
+                            new_val = target_values[matched_cat].strip()
+                        elif matched_cat == "Tahun Penyusunan" and "Tahun Ajaran" in target_values:
+                            new_val = target_values["Tahun Ajaran"].strip()
+                        elif matched_cat == "Tahun Ajaran" and "Tahun Penyusunan" in target_values:
+                            new_val = target_values["Tahun Penyusunan"].strip()
+                        elif matched_cat == "Jenjang Sekolah":
+                            if "Jenjang Sekolah" in target_values:
+                                new_val = target_values["Jenjang Sekolah"].strip()
+                            elif "Nama Madrasah" in target_values or "Nama Sekolah" in target_values:
+                                v_upper = val_text.strip().upper()
+                                if v_upper == "SD":
+                                    new_val = "SD/MI"
+                                elif v_upper == "SMP":
+                                    new_val = "SMP/MTs"
+                                elif v_upper == "SMA":
+                                    new_val = "SMA/MA"
+
+                        if not new_val:
+                            continue
+
+                        if matched_cat == "Nama Madrasah":
+                            formatted_new = new_val
+                        elif "Tahun" in matched_cat:
+                            if val_text.lower().startswith("tahun ") and not new_val.lower().startswith("tahun"):
+                                formatted_new = f"Tahun {new_val}"
+                            else:
+                                formatted_new = new_val
+                        else:
+                            _, had_parens = unwrap_parentheses(val_text)
+                            formatted_new = format_with_parentheses(new_val, had_parens)
+
+                        if is_pure_placeholder(val_text) or "..." in val_text or "…" in val_text or "____" in val_text or val_text.strip() != formatted_new:
+                            items.append(ReplacementPlanItem(
+                                doc_path=in_path,
+                                rel_path=rel_path,
+                                category=matched_cat,
+                                old_text=val_text,
+                                new_text=formatted_new,
+                                confidence=conf,
+                                location_info=f"Tabel Identitas #{t_idx} Baris #{r_idx} Paragraf #{pt_idx} ({clean_label})",
+                                is_approved=(conf != ConfidenceLevel.LOW),
+                                target_type="TABLE_CELL_PARA",
+                                target_meta={
+                                    "table_idx": t_idx,
+                                    "row_idx": r_idx,
+                                    "col_idx": target_col,
+                                    "para_idx": pt_idx,
+                                }
+                            ))
                     continue
 
-                matched_cat = match_category(label_text, self.aliases)
+                # KASUS: Tabel 1 Baris per Field biasa (Single-Paragraph per Cell)
+                label_text = cells[0].text.strip()
+                clean_label = label_text.rstrip(": \t")
+                if not clean_label or len(clean_label) > 40 or len(clean_label.split()) > 6:
+                    continue
+
+                matched_cat = match_category(clean_label, self.aliases) or match_category(label_text, self.aliases)
                 conf = ConfidenceLevel.HIGH
 
                 if not matched_cat:
-                    f_cat, f_score, _ = find_fuzzy_category_match(label_text, self.aliases, threshold=0.80)
+                    f_cat, f_score, _ = find_fuzzy_category_match(clean_label, self.aliases, threshold=0.80)
                     if f_cat:
                         matched_cat = f_cat
                         conf = ConfidenceLevel.MEDIUM if f_score >= 0.90 else ConfidenceLevel.LOW
 
-                if matched_cat and matched_cat in target_values:
+                if not matched_cat:
+                    continue
+
+                new_val = ""
+                if matched_cat in target_values:
                     new_val = target_values[matched_cat].strip()
-                    if not new_val:
-                        continue
-                    old_val = cells[target_col].text.strip()
-                    if is_pure_placeholder(old_val) or old_val == "" or old_val != new_val:
-                        items.append(ReplacementPlanItem(
-                            doc_path=in_path,
-                            rel_path=rel_path,
-                            category=matched_cat,
-                            old_text=old_val,
-                            new_text=new_val,
-                            confidence=conf,
-                            location_info=f"Tabel Identitas #{t_idx} Baris {r_idx}",
-                            is_approved=(conf != ConfidenceLevel.LOW),
-                            target_type="TABLE_CELL",
-                            target_meta={"table_idx": t_idx, "row_idx": r_idx, "col_idx": target_col}
-                        ))
+                elif matched_cat == "Tahun Penyusunan" and "Tahun Ajaran" in target_values:
+                    new_val = target_values["Tahun Ajaran"].strip()
+                elif matched_cat == "Tahun Ajaran" and "Tahun Penyusunan" in target_values:
+                    new_val = target_values["Tahun Penyusunan"].strip()
+                elif matched_cat == "Jenjang Sekolah":
+                    if "Jenjang Sekolah" in target_values:
+                        new_val = target_values["Jenjang Sekolah"].strip()
+                    elif "Nama Madrasah" in target_values or "Nama Sekolah" in target_values:
+                        v_upper = cells[target_col].text.strip().upper()
+                        if v_upper == "SD":
+                            new_val = "SD/MI"
+                        elif v_upper == "SMP":
+                            new_val = "SMP/MTs"
+                        elif v_upper == "SMA":
+                            new_val = "SMA/MA"
+
+                if not new_val:
+                    continue
+
+                old_val = cells[target_col].text.strip()
+                if matched_cat == "Nama Madrasah":
+                    formatted_new = new_val
+                elif "Tahun" in matched_cat and old_val.lower().startswith("tahun ") and not new_val.lower().startswith("tahun"):
+                    formatted_new = f"Tahun {new_val}"
+                else:
+                    _, had_parens = unwrap_parentheses(old_val)
+                    formatted_new = format_with_parentheses(new_val, had_parens)
+
+                if is_pure_placeholder(old_val) or "..." in old_val or "…" in old_val or "____" in old_val or old_val == "" or old_val != formatted_new:
+                    items.append(ReplacementPlanItem(
+                        doc_path=in_path,
+                        rel_path=rel_path,
+                        category=matched_cat,
+                        old_text=old_val,
+                        new_text=formatted_new,
+                        confidence=conf,
+                        location_info=f"Tabel Identitas #{t_idx} Baris {r_idx}",
+                        is_approved=(conf != ConfidenceLevel.LOW),
+                        target_type="TABLE_CELL",
+                        target_meta={"table_idx": t_idx, "row_idx": r_idx, "col_idx": target_col}
+                    ))
         return items
 
     def _plan_inline_paragraphs(
@@ -629,26 +756,32 @@ class ReplacementEngine:
                         matched_cat = f_cat
                         conf = ConfidenceLevel.MEDIUM if f_score >= 0.90 else ConfidenceLevel.LOW
 
+                new_val = ""
                 if matched_cat and matched_cat in target_values:
                     new_val = target_values[matched_cat].strip()
-                    if new_val:
-                        items.append(ReplacementPlanItem(
-                            doc_path=in_path,
-                            rel_path=rel_path,
-                            category=matched_cat,
-                            old_text=placeholder_str,
-                            new_text=new_val,
-                            confidence=conf,
-                            location_info=f"Paragraf #{p_idx} (Inline)",
-                            is_approved=(conf != ConfidenceLevel.LOW),
-                            target_type="PARAGRAPH_SPAN",
-                            target_meta={
-                                "para_idx": p_idx,
-                                "start": start_pos,
-                                "end": end_pos,
-                                "original_text": text,
-                            }
-                        ))
+                elif matched_cat == "Tahun Penyusunan" and "Tahun Ajaran" in target_values:
+                    new_val = target_values["Tahun Ajaran"].strip()
+                elif matched_cat == "Tahun Ajaran" and "Tahun Penyusunan" in target_values:
+                    new_val = target_values["Tahun Penyusunan"].strip()
+
+                if matched_cat and new_val:
+                    items.append(ReplacementPlanItem(
+                        doc_path=in_path,
+                        rel_path=rel_path,
+                        category=matched_cat,
+                        old_text=placeholder_str,
+                        new_text=new_val,
+                        confidence=conf,
+                        location_info=f"Paragraf #{p_idx} (Inline)",
+                        is_approved=(conf != ConfidenceLevel.LOW),
+                        target_type="PARAGRAPH_SPAN",
+                        target_meta={
+                            "para_idx": p_idx,
+                            "start": start_pos,
+                            "end": end_pos,
+                            "original_text": text,
+                        }
+                    ))
             else:
                 # Cek jika ada nilai yang sudah terisi (mis. 'Tahun Pelajaran : 2025/2026')
                 from core.placeholder_detector import extract_filled_value_span
@@ -661,10 +794,16 @@ class ReplacementEngine:
                         if f_cat and f_score >= 0.85:
                             matched_cat = f_cat
 
+                    new_val = ""
                     if matched_cat and matched_cat in target_values:
                         new_val = target_values[matched_cat].strip()
-                        if new_val and new_val != filled_str:
-                            items.append(ReplacementPlanItem(
+                    elif matched_cat == "Tahun Penyusunan" and "Tahun Ajaran" in target_values:
+                        new_val = target_values["Tahun Ajaran"].strip()
+                    elif matched_cat == "Tahun Ajaran" and "Tahun Penyusunan" in target_values:
+                        new_val = target_values["Tahun Penyusunan"].strip()
+
+                    if matched_cat and new_val and new_val != filled_str:
+                        items.append(ReplacementPlanItem(
                                 doc_path=in_path,
                                 rel_path=rel_path,
                                 category=matched_cat,

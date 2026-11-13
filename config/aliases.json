@@ -51,7 +51,10 @@
     "Tahun Ajaran",
     "TP",
     "Th. Pelajaran",
-    "Tahun Ajaran/Pelajaran"
+    "Tahun Ajaran/Pelajaran",
+    "Tahun Penyusunan",
+    "Tahun Pembuatan",
+    "Tahun"
   ],
   "Semester": [
     "Semester",
@@ -64,5 +67,11 @@
     "Tempat, Tanggal",
     "Tanggal Pengesahan",
     "Tanggal"
+  ],
+  "Jenjang Sekolah": [
+    "Jenjang Sekolah",
+    "Jenjang Pendidikan",
+    "Tingkat Sekolah",
+    "Jenjang"
   ]
 }

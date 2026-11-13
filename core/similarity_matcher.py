@@ -31,7 +31,7 @@ def find_fuzzy_category_match(
     Jika skor tertinggi < threshold, mengembalikan (None, 0.0, "").
     """
     clean_text = normalize_string(text)
-    if not clean_text:
+    if not clean_text or len(clean_text) > 45 or len(clean_text.split()) > 6:
         return None, 0.0, ""
 
     best_cat: Optional[str] = None
@@ -44,8 +44,6 @@ def find_fuzzy_category_match(
     if resolver is not None:
         blocked_cats = {c for c in aliases if resolver.is_blocked_for_category(text, c, for_fuzzy=True)}
 
-    # Uji kecocokan langsung per frasa atau potongan teks jika teks panjang
-    words = clean_text.split()
     for cat, alias_list in aliases.items():
         if cat in blocked_cats:
             continue
@@ -54,23 +52,11 @@ def find_fuzzy_category_match(
             if not clean_al:
                 continue
 
-            # 1. Bandingkan langsung
             score = difflib.SequenceMatcher(None, clean_text, clean_al).ratio()
             if score > best_score:
                 best_score = score
                 best_cat = cat
                 best_alias = al
-
-            # 2. Bandingkan n-gram kata jika teks dokumen lebih panjang dari alias
-            al_len = len(clean_al.split())
-            if len(words) >= al_len:
-                for i in range(len(words) - al_len + 1):
-                    window = " ".join(words[i : i + al_len])
-                    win_score = difflib.SequenceMatcher(None, window, clean_al).ratio()
-                    if win_score > best_score:
-                        best_score = win_score
-                        best_cat = cat
-                        best_alias = al
 
     if best_score >= threshold:
         return best_cat, best_score, best_alias

@@ -75,13 +75,15 @@ d:\docomen_replacer\
 ├── signatures/                 # Pustaka Gambar Tanda Tangan & Stempel Pengguna
 │   └── .gitkeep                # Hanya .gitkeep yang di-commit (gambar dilindungi .gitignore)
 │
-├── tests/                      # Suite Pengujian Otomatis (92 Tests Wajib Lulus)
+├── tests/                      # Suite Pengujian Otomatis (98 Tests Wajib Lulus)
 │   ├── __init__.py
 │   ├── generate_samples.py     # Generator dokumen sampel uji .docx
 │   ├── test_smart_engine.py    # Uji coba end-to-end engine penggantian teks (25 test)
 │   ├── test_year_replacement.py # Uji coba 7 kasus golden test pola tahun (7 test)
 │   ├── test_overlapping_proposals.py # Uji resolusi konflik usulan tumpang tindih (2 test)
 │   ├── test_change_verifier.py # Uji verifikasi mekanis/semantik & laporan JSON (4 test)
+│   ├── test_modul_ajar_context.py # Uji coba tabel identitas multi-paragraf Modul Ajar (3 test)
+│   ├── test_anti_blind_replacement.py # Uji proteksi anti-blind replacement & isolasi placeholder (3 test)
 │   ├── test_field_dictionary.py # Uji coba kamus istilah & normalisasi label (13 test)
 │   ├── test_dictionary_corpus.py # Uji akurasi deteksi kamus terhadap korpus nyata (13 test)
 │   ├── test_document_predictor.py # Uji coba prediksi field & auto-fill aturan (7 test)
@@ -163,7 +165,7 @@ Setiap agen AI yang bekerja di repositori ini **WAJIB** mematuhi aturan ketat be
   python -m unittest discover tests
   ```
 * **JANGAN** menggunakan perintah `pytest` secara langsung di shell tanpa memastikan lingkungan virtual terpasang, karena lingkungan host mungkin hanya memiliki pustaka standar Python.
-* **Invarian Uji**: Seluruh **92 test** harus berstatus **OK (100% Pass)** sebelum perubahan dianggap selesai.
+* **Invarian Uji**: Seluruh **98 test** harus berstatus **OK (100% Pass)** sebelum perubahan dianggap selesai.
 
 ---
 

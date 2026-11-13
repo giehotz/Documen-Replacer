@@ -13,20 +13,23 @@ RE_DOTS = re.compile(r"\.{2,}")
 RE_UNDERLINE = re.compile(r"_{2,}")
 
 # Regex placeholder di dalam kurung: ( .... ), [ ____ ], {   }, ([ .... ])
-RE_PAREN_PLACEHOLDER = re.compile(r"[\(\[\{]\s*[\._\s\-\u2013\u2014]{2,}\s*[\)\]\}]")
+RE_PAREN_PLACEHOLDER = re.compile(r"[\(\[\{]\s*[\._\s\-\u2013\u2014\u2026]{2,}\s*[\)\]\}]")
 
-# Regex baris yang murni merupakan placeholder (titik, garis bawah, kurung kosong (), [], {}, dll)
-RE_PURE_PLACEHOLDER = re.compile(r"^[\s\._\-\u2013\u2014\(\)\[\]{}]+$")
+# Regex baris yang murni merupakan placeholder (titik, garis bawah, elipsis, kurung kosong (), [], {}, dll)
+RE_PURE_PLACEHOLDER = re.compile(r"^[\s\._\-\u2013\u2014\u2026\(\)\[\]{}]+$")
+
+# Regex elipsis Unicode (…)
+RE_ELLIPSIS = re.compile(r"\u2026+")
 
 # Regex khusus pola rentang tahun berbasis placeholder (misal 20.... / 20...., 20.. / 20.., .... / ...., dst.)
 RE_YEAR_RANGE_PLACEHOLDER = re.compile(
-    r"(?:20)?[\._\s\-\u2013\u2014]{2,}\s*[/\\-]\s*(?:20)?[\._\s\-\u2013\u2014]{2,}",
+    r"(?:20)?[\._\s\-\u2013\u2014\u2026]{2,}\s*[/\\-]\s*(?:20)?[\._\s\-\u2013\u2014\u2026]{2,}",
     re.IGNORECASE
 )
 
-# Regex khusus pola tahun tunggal dengan awalan 20 atau titik (misal 20...., 20..., 20..)
+# Regex khusus pola tahun tunggal dengan awalan 20 atau titik (misal 20...., 20..., 20.., 20…)
 RE_YEAR_SINGLE_PLACEHOLDER = re.compile(
-    r"\b20[\._\s\-\u2013\u2014]{2,}\b|\b20[\.]{2,}",
+    r"\b20[\._\s\-\u2013\u2014\u2026]{1,}\b|\b20[\.]{2,}|\b20\u2026",
     re.IGNORECASE
 )
 
@@ -42,15 +45,15 @@ def is_year_context(text: str) -> bool:
 
 
 def is_pure_placeholder(text: str) -> bool:
-    """Memeriksa apakah teks murni berupa placeholder (titik-titik, garis bawah, strip/dash, kurung kosong (), [], {})."""
+    """Memeriksa apakah teks murni berupa placeholder (titik-titik, garis bawah, strip/dash, elipsis …, kurung kosong (), [], {})."""
     stripped = text.strip()
     if not stripped:
         return False
-    # Jika hanya berupa strip atau dash tunggal/ganda
-    if stripped in ("-", "--", "---", "\u2013", "\u2014"):
+    # Jika hanya berupa strip, dash, atau elipsis tunggal/ganda
+    if stripped in ("-", "--", "---", "\u2013", "\u2014", "\u2026"):
         return True
-    # Minimal mengandung setidaknya 2 karakter titik, underscore, atau strip
-    has_symbols = bool(re.search(r"[\._\-\u2013\u2014]{2,}", stripped))
+    # Mengandung setidaknya 1 karakter elipsis (…) atau 2 karakter titik, underscore, strip
+    has_symbols = bool(re.search(r"[\._\-\u2013\u2014]{2,}|\u2026", stripped))
     return has_symbols and bool(RE_PURE_PLACEHOLDER.match(stripped))
 
 
@@ -112,6 +115,11 @@ def find_placeholder_span(text: str) -> Optional[Tuple[int, int]]:
     m_und = RE_UNDERLINE.search(text)
     if m_und:
         return m_und.span()
+
+    # Cek elipsis Unicode (…)
+    m_ell = RE_ELLIPSIS.search(text)
+    if m_ell:
+        return m_ell.span()
 
     return None
 
