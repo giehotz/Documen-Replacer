@@ -191,11 +191,14 @@ class ReplacementEngine:
             if new:
                 target_values[cat] = new
 
+        # Pemetaan elemen XML <w:p> ke indeks kanonikal iter_all_paragraphs (Bug 2 Fix)
+        elem_to_all_idx = {p._element: idx for idx, p in enumerate(iter_all_paragraphs(doc.element.body, doc))}
+
         # A. Mode Khusus: Hanya Sisipkan Tanda Tangan
         if mode == "SIGNATURE_ONLY":
             items.extend(self._plan_signature_tables(doc, in_path, rel_path, target_values, mode="SIGNATURE_ONLY"))
             if not items:
-                items.extend(self._plan_tab_signatures(doc, in_path, rel_path, target_values))
+                items.extend(self._plan_tab_signatures(doc, in_path, rel_path, target_values, elem_to_all_idx=elem_to_all_idx))
             return items
 
         # B. Rencana Pencocokan Persis (Body & Header/Footer)
@@ -211,8 +214,8 @@ class ReplacementEngine:
         items.extend(self._plan_identity_tables(doc, in_path, rel_path, target_values))
 
         # D. Rencana Paragraf Dokumen (Inline Labels & Blok TTD Tabulasi)
-        items.extend(self._plan_inline_paragraphs(doc, in_path, rel_path, target_values))
-        items.extend(self._plan_tab_signatures(doc, in_path, rel_path, target_values))
+        items.extend(self._plan_inline_paragraphs(doc, in_path, rel_path, target_values, elem_to_all_idx=elem_to_all_idx))
+        items.extend(self._plan_tab_signatures(doc, in_path, rel_path, target_values, elem_to_all_idx=elem_to_all_idx))
 
         # E. Resolusi Tumpang Tindih & Deduplikasi Usulan
         items = self._deduplicate_and_resolve_overlaps(items)
@@ -256,6 +259,7 @@ class ReplacementEngine:
                         target_type="EXACT",
                         target_meta={
                             "para_idx": p_idx,
+                            "all_para_idx": p_idx,
                             "old_text": old_match,
                             "new_text": new_val,
                             "start": m.start(),
@@ -279,9 +283,28 @@ class ReplacementEngine:
             return items
         pattern, mapping, is_cs = compiled_exact
         for s_idx, sec in enumerate(doc.sections):
-            for hf_name, hf in [("Header", sec.header), ("Footer", sec.footer)]:
-                if hf and not hf.is_linked_to_previous:
-                    for hf_p_idx, p in enumerate(hf.paragraphs):
+            hf_targets = [
+                ("header", "Header Normal", sec.header),
+                ("footer", "Footer Normal", sec.footer),
+            ]
+            if getattr(sec, "different_first_page_header_footer", False):
+                hf_targets.extend([
+                    ("first_page_header", "Header Halaman Pertama", sec.first_page_header),
+                    ("first_page_footer", "Footer Halaman Pertama", sec.first_page_footer),
+                ])
+            try:
+                if getattr(doc.settings, "odd_and_even_pages_header_footer", False):
+                    hf_targets.extend([
+                        ("even_page_header", "Header Halaman Genap", sec.even_page_header),
+                        ("even_page_footer", "Footer Halaman Genap", sec.even_page_footer),
+                    ])
+            except Exception:
+                pass
+
+            for hf_attr, hf_name, hf in hf_targets:
+                if hf and not getattr(hf, "is_linked_to_previous", False):
+                    all_hf_paras = list(iter_all_paragraphs(hf._element, doc))
+                    for hf_p_idx, p in enumerate(all_hf_paras):
                         text = get_paragraph_text(p)
                         for m in pattern.finditer(text):
                             old_match = m.group(0)
@@ -297,15 +320,19 @@ class ReplacementEngine:
                                     old_text=old_match,
                                     new_text=new_val,
                                     confidence=ConfidenceLevel.HIGH,
-                                    location_info=f"{hf_name} Bagian #{s_idx}",
+                                    location_info=f"{hf_name} Bagian #{s_idx} Paragraf #{hf_p_idx}",
                                     is_approved=True,
                                     target_type="HEADER_FOOTER",
                                     target_meta={
                                         "sec_idx": s_idx,
-                                        "is_header": (hf_name == "Header"),
+                                        "is_header": "header" in hf_attr,
+                                        "hf_attr": hf_attr,
                                         "para_idx": hf_p_idx,
                                         "old_text": old_match,
                                         "new_text": new_val,
+                                        "start": m.start(),
+                                        "end": m.end(),
+                                        "original_text": text,
                                     }
                                 ))
         return items
@@ -326,7 +353,7 @@ class ReplacementEngine:
             t_type = it.target_type
             meta = it.target_meta or {}
             if t_type in ("EXACT", "PARAGRAPH_SPAN"):
-                p_idx = meta.get("para_idx", -1)
+                p_idx = meta.get("all_para_idx", meta.get("para_idx", -1))
                 loc_key = f"{it.doc_path}#P#{p_idx}"
             elif t_type in ("TABLE_CELL", "TABLE_CELL_SPAN", "TABLE_CELL_PARA", "INSERT_SIGNATURE_TABLE"):
                 t_idx = meta.get("table_idx", -1)
@@ -336,9 +363,9 @@ class ReplacementEngine:
                 loc_key = f"{it.doc_path}#T#{t_idx}_{r_idx}_{c_idx}_{p_idx}"
             elif t_type == "HEADER_FOOTER":
                 s_idx = meta.get("sec_idx", -1)
-                is_hdr = meta.get("is_header", True)
+                hf_attr = meta.get("hf_attr", "header" if meta.get("is_header", True) else "footer")
                 p_idx = meta.get("para_idx", -1)
-                loc_key = f"{it.doc_path}#HF#{s_idx}_{is_hdr}_{p_idx}"
+                loc_key = f"{it.doc_path}#HF#{s_idx}_{hf_attr}_{p_idx}"
             elif t_type == "TAB_LINE":
                 # Baris tanda tangan tabulasi memuat kolom kiri (Kepala) dan kanan (Guru) pada baris yang sama
                 loc_key = f"{it.doc_path}#{it.location_info}#{it.category}"
@@ -367,7 +394,7 @@ class ReplacementEngine:
                         candidate.target_meta["start"] = c_start
                         candidate.target_meta["end"] = c_end
 
-                has_overlap = False
+                overlapping_entries = []
                 for i, existing in enumerate(kept):
                     e_start = existing.target_meta.get("start")
                     e_end = existing.target_meta.get("end")
@@ -378,7 +405,14 @@ class ReplacementEngine:
                         overlaps = (candidate.old_text in existing.old_text or existing.old_text in candidate.old_text)
 
                     if overlaps:
-                        has_overlap = True
+                        overlapping_entries.append((i, existing))
+
+                if not overlapping_entries:
+                    kept.append(candidate)
+                else:
+                    # Bug 4 Fix: Periksa apakah kandidat mengalahkan SEMUA item yang beririsan
+                    candidate_wins_all = True
+                    for i, existing in overlapping_entries:
                         c_is_exact = (candidate.target_type == "EXACT")
                         e_is_exact = (existing.target_type == "EXACT")
 
@@ -389,15 +423,17 @@ class ReplacementEngine:
                         else:
                             winner_is_candidate = (len(candidate.old_text) >= len(existing.old_text))
 
-                        if winner_is_candidate:
-                            candidate.target_meta.setdefault("superseded_old_texts", []).append(existing.old_text)
-                            kept[i] = candidate
-                        else:
+                        if not winner_is_candidate:
+                            candidate_wins_all = False
                             existing.target_meta.setdefault("superseded_old_texts", []).append(candidate.old_text)
-                        break
+                            break
 
-                if not has_overlap:
-                    kept.append(candidate)
+                    if candidate_wins_all:
+                        for i, existing in overlapping_entries:
+                            candidate.target_meta.setdefault("superseded_old_texts", []).append(existing.old_text)
+                        for i, _ in sorted(overlapping_entries, key=lambda x: x[0], reverse=True):
+                            kept.pop(i)
+                        kept.append(candidate)
 
             resolved_items.extend(kept)
 
@@ -815,12 +851,14 @@ class ReplacementEngine:
         doc,
         in_path: str,
         rel_path: str,
-        target_values: Dict[str, str]
+        target_values: Dict[str, str],
+        elem_to_all_idx: Optional[Dict[Any, int]] = None
     ) -> List[ReplacementPlanItem]:
         # S5: Gunakan doc.paragraphs (paragraf root body saja, tidak di dalam sel tabel)
         # untuk mencegah duplikasi pemindaian dengan Tabel Identitas!
         items: List[ReplacementPlanItem] = []
         for p_idx, p in enumerate(doc.paragraphs):
+            all_p_idx = elem_to_all_idx.get(p._element, p_idx) if elem_to_all_idx else p_idx
             text = get_paragraph_text(p)
             extracted = extract_label_and_placeholder(text)
             if extracted:
@@ -854,6 +892,7 @@ class ReplacementEngine:
                         target_type="PARAGRAPH_SPAN",
                         target_meta={
                             "para_idx": p_idx,
+                            "all_para_idx": all_p_idx,
                             "start": start_pos,
                             "end": end_pos,
                             "original_text": text,
@@ -892,6 +931,7 @@ class ReplacementEngine:
                                 target_type="PARAGRAPH_SPAN",
                                 target_meta={
                                     "para_idx": p_idx,
+                                    "all_para_idx": all_p_idx,
                                     "start": start_pos,
                                     "end": end_pos,
                                     "original_text": text,
@@ -905,7 +945,8 @@ class ReplacementEngine:
         doc,
         in_path: str,
         rel_path: str,
-        target_values: Dict[str, str]
+        target_values: Dict[str, str],
+        elem_to_all_idx: Optional[Dict[Any, int]] = None
     ) -> List[ReplacementPlanItem]:
         items: List[ReplacementPlanItem] = []
         body_paras = doc.paragraphs
@@ -925,7 +966,7 @@ class ReplacementEngine:
         if len(cur_b) >= 3:
             blocks.append(cur_b)
 
-        for block in blocks:
+        for b_idx, block in enumerate(blocks):
             block_txt = " ".join(get_paragraph_text(body_paras[i]) for i in block).lower()
             has_k = any(k in block_txt for k in KEPALA_ROLE_KEYWORDS)
             has_g = any(k in block_txt for k in GURU_ROLE_KEYWORDS)
@@ -935,18 +976,32 @@ class ReplacementEngine:
             for i in block:
                 p = body_paras[i]
                 t = get_paragraph_text(p)
+                all_p_idx = elem_to_all_idx.get(p._element, i) if elem_to_all_idx else i
                 parts = re.split(r"\t+", t)
                 if len(parts) >= 2:
                     left = parts[0].strip()
                     right = parts[-1].strip()
+                    left_pos = t.find(left) if left else 0
+                    right_pos = t.rfind(right) if right else len(t)
 
                     new_titi = target_values.get("Titimangsa", "").strip()
                     if new_titi and is_titimangsa_line(right):
                         items.append(ReplacementPlanItem(
                             doc_path=in_path, rel_path=rel_path, category="Titimangsa",
                             old_text=right, new_text=new_titi, confidence=ConfidenceLevel.HIGH,
-                            location_info=f"Tanda Tangan Tabulasi Baris #{i}", is_approved=True,
-                            target_type="TAB_LINE"
+                            location_info=f"Tanda Tangan Tabulasi Baris #{i} (Kanan)", is_approved=True,
+                            target_type="TAB_LINE",
+                            target_meta={
+                                "para_idx": i,
+                                "all_para_idx": all_p_idx,
+                                "side": "right",
+                                "start": right_pos,
+                                "end": right_pos + len(right),
+                                "original_text": t,
+                                "old_text": right,
+                                "new_text": new_titi,
+                                "block_idx": b_idx,
+                            }
                         ))
                     new_kepala = target_values.get("Nama Kepala", "").strip()
                     if new_kepala and (is_pure_placeholder(left) or is_academic_name(left)):
@@ -955,8 +1010,19 @@ class ReplacementEngine:
                         items.append(ReplacementPlanItem(
                             doc_path=in_path, rel_path=rel_path, category="Nama Kepala",
                             old_text=left, new_text=fmt_k, confidence=ConfidenceLevel.HIGH,
-                            location_info=f"Tanda Tangan Tabulasi Baris #{i}", is_approved=True,
-                            target_type="TAB_LINE"
+                            location_info=f"Tanda Tangan Tabulasi Baris #{i} (Kiri)", is_approved=True,
+                            target_type="TAB_LINE",
+                            target_meta={
+                                "para_idx": i,
+                                "all_para_idx": all_p_idx,
+                                "side": "left",
+                                "start": left_pos,
+                                "end": left_pos + len(left),
+                                "original_text": t,
+                                "old_text": left,
+                                "new_text": fmt_k,
+                                "block_idx": b_idx,
+                            }
                         ))
                     new_guru = target_values.get("Nama Guru", "").strip()
                     if new_guru and (is_pure_placeholder(right) or is_academic_name(right)):
@@ -965,24 +1031,57 @@ class ReplacementEngine:
                         items.append(ReplacementPlanItem(
                             doc_path=in_path, rel_path=rel_path, category="Nama Guru",
                             old_text=right, new_text=fmt_g, confidence=ConfidenceLevel.HIGH,
-                            location_info=f"Tanda Tangan Tabulasi Baris #{i}", is_approved=True,
-                            target_type="TAB_LINE"
+                            location_info=f"Tanda Tangan Tabulasi Baris #{i} (Kanan)", is_approved=True,
+                            target_type="TAB_LINE",
+                            target_meta={
+                                "para_idx": i,
+                                "all_para_idx": all_p_idx,
+                                "side": "right",
+                                "start": right_pos,
+                                "end": right_pos + len(right),
+                                "original_text": t,
+                                "old_text": right,
+                                "new_text": fmt_g,
+                                "block_idx": b_idx,
+                            }
                         ))
                     new_nip_k = target_values.get("NIP Kepala", "").strip()
                     if new_nip_k and RE_NIP_LINE.match(left):
                         items.append(ReplacementPlanItem(
                             doc_path=in_path, rel_path=rel_path, category="NIP Kepala",
                             old_text=left, new_text=f"NIP. {new_nip_k}", confidence=ConfidenceLevel.HIGH,
-                            location_info=f"Tanda Tangan Tabulasi Baris #{i}", is_approved=True,
-                            target_type="TAB_LINE"
+                            location_info=f"Tanda Tangan Tabulasi Baris #{i} (Kiri)", is_approved=True,
+                            target_type="TAB_LINE",
+                            target_meta={
+                                "para_idx": i,
+                                "all_para_idx": all_p_idx,
+                                "side": "left",
+                                "start": left_pos,
+                                "end": left_pos + len(left),
+                                "original_text": t,
+                                "old_text": left,
+                                "new_text": f"NIP. {new_nip_k}",
+                                "block_idx": b_idx,
+                            }
                         ))
                     new_nip_g = target_values.get("NIP Guru", "").strip()
                     if new_nip_g and RE_NIP_LINE.match(right):
                         items.append(ReplacementPlanItem(
                             doc_path=in_path, rel_path=rel_path, category="NIP Guru",
                             old_text=right, new_text=f"NIP. {new_nip_g}", confidence=ConfidenceLevel.HIGH,
-                            location_info=f"Tanda Tangan Tabulasi Baris #{i}", is_approved=True,
-                            target_type="TAB_LINE"
+                            location_info=f"Tanda Tangan Tabulasi Baris #{i} (Kanan)", is_approved=True,
+                            target_type="TAB_LINE",
+                            target_meta={
+                                "para_idx": i,
+                                "all_para_idx": all_p_idx,
+                                "side": "right",
+                                "start": right_pos,
+                                "end": right_pos + len(right),
+                                "original_text": t,
+                                "old_text": right,
+                                "new_text": f"NIP. {new_nip_g}",
+                                "block_idx": b_idx,
+                            }
                         ))
 
         return items
@@ -1129,16 +1228,18 @@ class ReplacementEngine:
 
             elif t_type == "HEADER_FOOTER":
                 s_idx = meta.get("sec_idx", 0)
-                is_hdr = meta.get("is_header", True)
+                hf_attr = meta.get("hf_attr", "header" if meta.get("is_header", True) else "footer")
                 p_idx = meta.get("para_idx", 0)
                 old_t = meta.get("old_text", "")
                 new_t = meta.get("new_text", "")
                 if s_idx < len(doc.sections):
-                    hf = doc.sections[s_idx].header if is_hdr else doc.sections[s_idx].footer
-                    if p_idx < len(hf.paragraphs):
+                    sec = doc.sections[s_idx]
+                    hf = getattr(sec, hf_attr, sec.header if meta.get("is_header", True) else sec.footer)
+                    all_hf_paras = list(iter_all_paragraphs(hf._element, doc))
+                    if p_idx < len(all_hf_paras):
                         compiled = build_exact_pattern([(old_t, new_t)], case_sensitive=True)
                         if compiled:
-                            changes += replace_by_pattern(hf.paragraphs[p_idx], compiled, {})
+                            changes += replace_by_pattern(all_hf_paras[p_idx], compiled, {})
 
             elif t_type == "EXACT":
                 p_idx = meta.get("para_idx", 0)
@@ -1153,8 +1254,38 @@ class ReplacementEngine:
         # K2: Proses blok tanda tangan bertabulasi HANYA untuk item yang benar-benar disetujui!
         tab_approved = [it for it in approved_items if it.is_approved and it.target_type == "TAB_LINE"]
         if tab_approved:
-            target_dict = {it.category: it.new_text for it in tab_approved}
-            changes += process_tab_separated_signature_block(body_paras, target_dict)
+            paras_by_idx: Dict[int, List[ReplacementPlanItem]] = {}
+            for it in tab_approved:
+                m = it.target_meta or {}
+                p_idx = m.get("para_idx")
+                if p_idx is not None and p_idx < len(body_paras):
+                    paras_by_idx.setdefault(p_idx, []).append(it)
+
+            for p_idx, p_items in paras_by_idx.items():
+                p = body_paras[p_idx]
+                curr_t = get_paragraph_text(p)
+                sorted_items = sorted(
+                    p_items,
+                    key=lambda it: (it.target_meta or {}).get("start", 0),
+                    reverse=True
+                )
+                for it in sorted_items:
+                    m = it.target_meta or {}
+                    s_pos = m.get("start")
+                    e_pos = m.get("end")
+                    old_t = it.old_text
+                    new_t = it.new_text
+                    if s_pos is not None and e_pos is not None and curr_t[s_pos:e_pos] == old_t:
+                        if replace_span(p, s_pos, e_pos, new_t):
+                            changes += 1
+                            curr_t = get_paragraph_text(p)
+                    else:
+                        side = m.get("side", "")
+                        pos = curr_t.rfind(old_t) if side == "right" else curr_t.find(old_t)
+                        if pos != -1:
+                            if replace_span(p, pos, pos + len(old_t), new_t):
+                                changes += 1
+                                curr_t = get_paragraph_text(p)
 
         save_document(doc, out_path)
         return changes

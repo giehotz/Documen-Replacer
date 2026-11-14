@@ -130,7 +130,8 @@ class SmartRPPReplacerApp:
             get_input_dir=lambda: self.input_dir_var.get(),
             field_dictionary=self.field_dictionary,
             on_dictionary_changed=self._on_dictionary_changed,
-            on_signature_changed=self._on_signature_changed
+            on_signature_changed=self._on_signature_changed,
+            on_status_msg=self._log
         )
         self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
@@ -186,12 +187,18 @@ class SmartRPPReplacerApp:
                 elif kind == "progress":
                     self.progress["value"] = payload
                 elif kind == "show_preview":
-                    if len(payload) == 4:
+                    if len(payload) == 6:
+                        plan_items, files, out_dir, failed_planning_rels, rules, mode = payload
+                    elif len(payload) == 4:
                         plan_items, files, out_dir, failed_planning_rels = payload
+                        rules = self.replacement_view.get_rules()
+                        mode = self.replacement_view.get_search_mode()
                     else:
                         plan_items, files, out_dir = payload
                         failed_planning_rels = set()
-                    self._handle_preview_dialog(plan_items, files, out_dir, failed_planning_rels)
+                        rules = self.replacement_view.get_rules()
+                        mode = self.replacement_view.get_search_mode()
+                    self._handle_preview_dialog(plan_items, files, out_dir, failed_planning_rels, rules, mode)
                 elif kind == "done":
                     out_dir = payload
                     self.btn_process.configure(state="normal")
@@ -232,7 +239,9 @@ class SmartRPPReplacerApp:
         plan_items: List[ReplacementPlanItem],
         files: List[Tuple[str, str]],
         out_dir: str,
-        failed_planning_rels: Optional[Set[str]] = None
+        failed_planning_rels: Optional[Set[str]] = None,
+        rules: Optional[List[Dict[str, str]]] = None,
+        mode: str = "GABUNGAN"
     ):
         failed_planning_rels = failed_planning_rels or set()
         if not plan_items and not failed_planning_rels:
@@ -254,7 +263,7 @@ class SmartRPPReplacerApp:
         self.progress.configure(maximum=len(files), value=0)
         threading.Thread(
             target=self._worker_apply,
-            args=(files, out_dir, plan_items, failed_planning_rels),
+            args=(files, out_dir, plan_items, failed_planning_rels, rules or [], mode),
             daemon=True
         ).start()
 
@@ -371,7 +380,7 @@ class SmartRPPReplacerApp:
                 self.msg_queue.put(("log", f"[GAGAL PINDAI] {rel} -> {e}"))
             self.msg_queue.put(("progress", idx))
 
-        self.msg_queue.put(("show_preview", (all_plan_items, files, out_dir, failed_planning_rels)))
+        self.msg_queue.put(("show_preview", (all_plan_items, files, out_dir, failed_planning_rels, rules, mode)))
 
     def _generate_change_report(
         self,
@@ -403,7 +412,9 @@ class SmartRPPReplacerApp:
         files: List[Tuple[str, str]],
         out_dir: str,
         plan_items: List[ReplacementPlanItem],
-        failed_planning_rels: Optional[Set[str]] = None
+        failed_planning_rels: Optional[Set[str]] = None,
+        rules: Optional[List[Dict[str, str]]] = None,
+        mode: str = "GABUNGAN"
     ):
         failed_planning_rels = failed_planning_rels or set()
         # Kelompokkan item yang disetujui berdasarkan rel_path
@@ -455,9 +466,12 @@ class SmartRPPReplacerApp:
             self.msg_queue.put(("progress", idx))
 
         # Terbitkan Laporan Perubahan JSON Lengkap
-        rules_used = self.replacement_view.get_rules()
-        mode_used = self.replacement_view.get_search_mode()
-        self._generate_change_report(out_dir, files, plan_items, rules_used, mode_used)
+        rules_used = rules or []
+        mode_used = mode
+        try:
+            self._generate_change_report(out_dir, files, plan_items, rules_used, mode_used)
+        except Exception as e:
+            self.msg_queue.put(("log", f"[GAGAL LAPORAN JSON] -> {e}"))
 
         self.report_service.write_report_file(out_dir)
         self.msg_queue.put(("done", out_dir))

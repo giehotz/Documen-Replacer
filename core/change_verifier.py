@@ -318,7 +318,12 @@ class ChangeReportGenerator:
         t_type = item.target_type
 
         try:
-            if t_type in ("EXACT", "PARAGRAPH_SPAN"):
+            if t_type == "EXACT":
+                p_idx = meta.get("all_para_idx", meta.get("para_idx", 0))
+                all_paras = list(iter_all_paragraphs(doc.element.body, doc))
+                if p_idx < len(all_paras):
+                    return get_paragraph_text(all_paras[p_idx])
+            elif t_type in ("PARAGRAPH_SPAN", "TAB_LINE"):
                 p_idx = meta.get("para_idx", 0)
                 paras = doc.paragraphs
                 if p_idx < len(paras):
@@ -337,13 +342,14 @@ class ChangeReportGenerator:
                             return get_paragraph_text(cell.paragraphs[p_idx])
             elif t_type == "HEADER_FOOTER":
                 s_idx = meta.get("sec_idx", 0)
-                is_hdr = meta.get("is_header", True)
+                hf_attr = meta.get("hf_attr", "header" if meta.get("is_header", True) else "footer")
                 p_idx = meta.get("para_idx", 0)
                 if s_idx < len(doc.sections):
                     sec = doc.sections[s_idx]
-                    hf = sec.header if is_hdr else sec.footer
-                    if p_idx < len(hf.paragraphs):
-                        return get_paragraph_text(hf.paragraphs[p_idx])
+                    hf = getattr(sec, hf_attr, sec.header if meta.get("is_header", True) else sec.footer)
+                    all_hf_paras = list(iter_all_paragraphs(hf._element, doc))
+                    if p_idx < len(all_hf_paras):
+                        return get_paragraph_text(all_hf_paras[p_idx])
         except Exception as e:
             logger.debug("Error saat membaca sesudah_aktual: %s", e)
 

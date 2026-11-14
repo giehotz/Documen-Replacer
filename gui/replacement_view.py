@@ -23,6 +23,7 @@ class ReplacementView(ttk.LabelFrame):
         field_dictionary: Optional[FieldDictionary] = None,
         on_dictionary_changed: Optional[Callable[[], None]] = None,
         on_signature_changed: Optional[Callable[[Dict[str, Any]], None]] = None,
+        on_status_msg: Optional[Callable[[str], None]] = None,
         **kwargs
     ):
         super().__init__(
@@ -35,6 +36,7 @@ class ReplacementView(ttk.LabelFrame):
         self.get_input_dir = get_input_dir
         self.on_dictionary_changed = on_dictionary_changed
         self.on_signature_changed = on_signature_changed
+        self.on_status_msg = on_status_msg
         self.field_dictionary = field_dictionary or FieldDictionary.load()
 
         self.search_mode_var = tk.StringVar(value="GABUNGAN")
@@ -411,7 +413,7 @@ class ReplacementView(ttk.LabelFrame):
             self._predict_from_single_file()
 
     def _predict_from_single_file(self):
-        """Menganalisis 1 file Word (.docx / .doc) contoh dan mengisi tabel secara cerdas."""
+        """Menganalisis 1 file Word (.docx / .doc) contoh dan mengisi tabel secara cerdas dengan dialog live log."""
         path = filedialog.askopenfilename(
             filetypes=[
                 ("Semua Dokumen Word", "*.docx;*.doc"),
@@ -424,30 +426,34 @@ class ReplacementView(ttk.LabelFrame):
         if not path:
             return
 
-        from core.document_predictor import predict_rules_from_file, collect_unknown_labels
-        try:
-            current_rules = self.get_rules()
-            merged_rules = predict_rules_from_file(path, current_rules=current_rules)
-            self.apply_rules_to_table(merged_rules)
-            filename = os.path.basename(path)
-            messagebox.showinfo(
-                "Prediksi Dokumen Berhasil",
-                f"Selesai menganalisis dokumen contoh:\n{filename}\n\n"
-                f"• {len(merged_rules)} aturan penggantian berhasil disiapkan.\n"
-                f"• Kolom 'Teks Lama' telah disesuaikan dengan format dokumen.\n"
-                f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan.\n\n"
-                f"Silakan periksa isian atau klik 'Simpan Profil (.json)' untuk menyimpannya."
+        from gui.predict_dialog import PredictProgressDialog
+        from gui.prediction_summary_dialog import PredictionSummaryDialog
+
+        def on_single_predict_complete(merged_rules, unknowns):
+            PredictionSummaryDialog(
+                parent=self,
+                target_path=path,
+                is_folder=False,
+                rules=merged_rules,
+                unknown_labels=unknowns,
+                field_dictionary=self.field_dictionary,
+                on_apply=self.apply_rules_to_table,
+                on_open_dictionary=self._open_unknown_labels_dialog,
             )
 
-            # Cek deteksi unknown labels
-            unknowns = collect_unknown_labels(path, dictionary=self.field_dictionary)
-            if unknowns:
-                self._open_unknown_labels_dialog(unknowns)
-        except Exception as e:
-            messagebox.showerror("Gagal Menganalisis Dokumen", f"Terjadi kesalahan saat membaca dokumen:\n{e}")
+        current_rules = self.get_rules()
+        PredictProgressDialog(
+            parent=self,
+            target_path=path,
+            is_folder=False,
+            current_rules=current_rules,
+            field_dictionary=self.field_dictionary,
+            on_complete=on_single_predict_complete,
+            on_status_msg=self.on_status_msg,
+        )
 
     def _predict_from_folder(self):
-        """Memindai seluruh dokumen dalam folder input dan mengumpulkan variasi unik."""
+        """Memindai seluruh dokumen dalam folder input dan mengumpulkan variasi unik dengan dialog live log."""
         target_dir = ""
         if self.get_input_dir:
             try:
@@ -460,23 +466,28 @@ class ReplacementView(ttk.LabelFrame):
             if not target_dir:
                 return
 
-        from core.document_predictor import predict_rules_from_folder, collect_unknown_labels
-        try:
-            current_rules = self.get_rules()
-            merged_rules = predict_rules_from_folder(target_dir, current_rules=current_rules)
-            self.apply_rules_to_table(merged_rules)
-            folder_name = os.path.basename(target_dir) or target_dir
-            messagebox.showinfo(
-                "Pemindaian Folder Berhasil",
-                f"Selesai memindai folder dokumen:\n{folder_name}\n\n"
-                f"• {len(merged_rules)} aturan (termasuk semua variasi format unik) berhasil disiapkan.\n"
-                f"• Kolom 'Teks Lama' siap mencakup seluruh variasi dokumen.\n"
-                f"• Nilai profil 'Teks Baru' Anda tetap dipertahankan."
+        from gui.predict_dialog import PredictProgressDialog
+        from gui.prediction_summary_dialog import PredictionSummaryDialog
+
+        def on_folder_predict_complete(merged_rules, unknowns):
+            PredictionSummaryDialog(
+                parent=self,
+                target_path=target_dir,
+                is_folder=True,
+                rules=merged_rules,
+                unknown_labels=unknowns,
+                field_dictionary=self.field_dictionary,
+                on_apply=self.apply_rules_to_table,
+                on_open_dictionary=self._open_unknown_labels_dialog,
             )
 
-            # Cek deteksi unknown labels di seluruh folder
-            unknowns = collect_unknown_labels(target_dir, dictionary=self.field_dictionary)
-            if unknowns:
-                self._open_unknown_labels_dialog(unknowns)
-        except Exception as e:
-            messagebox.showerror("Gagal Memindai Folder", f"Terjadi kesalahan saat memindai folder:\n{e}")
+        current_rules = self.get_rules()
+        PredictProgressDialog(
+            parent=self,
+            target_path=target_dir,
+            is_folder=True,
+            current_rules=current_rules,
+            field_dictionary=self.field_dictionary,
+            on_complete=on_folder_predict_complete,
+            on_status_msg=self.on_status_msg,
+        )

@@ -3,10 +3,11 @@ Modul Prediksi Dokumen & Generator Aturan Cerdas.
 Membaca dokumen Word (.docx / .doc) contoh atau folder dokumen, mendeteksi struktur & format unik,
 mengekstrak teks lama / placeholder yang ada, dan menyarankan daftar aturan penggantian data.
 """
-from typing import Dict, List, Set, Optional, Tuple, Any
+from typing import Dict, List, Set, Optional, Tuple, Any, Callable
 import os
 import re
 import logging
+import threading
 
 from core.label_recognizer import load_aliases, match_category
 from core.placeholder_detector import extract_label_and_placeholder, is_pure_placeholder
@@ -239,14 +240,51 @@ def smart_merge_rules(existing_rules: List[Dict[str, str]], predicted_rules: Lis
 def predict_rules_from_file(
     docx_path: str,
     current_rules: Optional[List[Dict[str, str]]] = None,
-    defaults: Optional[Dict[str, str]] = None
+    defaults: Optional[Dict[str, str]] = None,
+    log_callback: Optional[Callable[[str], None]] = None
 ) -> List[Dict[str, str]]:
     """
     Menganalisis 1 file Word contoh (.docx / .doc) dan menghasilkan daftar aturan saran penggantian teks.
     Tanpa PII hardcoded: nilai 'new' diambil dari defaults/current_rules, atau dibiarkan kosong secara aman.
     """
+    fname = os.path.basename(docx_path)
+    if log_callback:
+        log_callback(f"[FILE] Memindai dokumen: {fname}")
+
     candidates = extract_candidates_from_document(docx_path)
     predicted: List[Dict[str, str]] = []
+
+    if log_callback:
+        jabatan_cands = candidates.get("Istilah Jabatan Kepala", set())
+        if jabatan_cands:
+            log_callback(f"  ✔ Jabatan Kepala: {', '.join(sorted(jabatan_cands))}")
+        tp_cands = candidates.get("Tahun Pelajaran", set()) | candidates.get("Tahun Ajaran", set())
+        if tp_cands:
+            log_callback(f"  ✔ Tahun Pelajaran: {', '.join(sorted(tp_cands))}")
+        madrasah_cands = [m for m in candidates.get("Nama Madrasah", set()) if not is_pure_placeholder(m)]
+        if madrasah_cands:
+            log_callback(f"  ✔ Nama Madrasah/Instansi: {', '.join(sorted(madrasah_cands))}")
+        k_cands = [k for k in candidates.get("Nama Kepala", set()) if not is_pure_placeholder(k)]
+        if k_cands:
+            log_callback(f"  ✔ Nama Kepala: {', '.join(sorted(k_cands))}")
+        nip_k_cands = candidates.get("NIP Kepala", set())
+        if nip_k_cands:
+            log_callback(f"  ✔ NIP Kepala: {', '.join(sorted(nip_k_cands))}")
+        g_cands = [g for g in candidates.get("Nama Guru", set()) if not is_pure_placeholder(g)]
+        if g_cands:
+            log_callback(f"  ✔ Nama Guru: {', '.join(sorted(g_cands))}")
+        nip_g_cands = candidates.get("NIP Guru", set())
+        if nip_g_cands:
+            log_callback(f"  ✔ NIP Guru: {', '.join(sorted(nip_g_cands))}")
+        titi_cands = [t for t in candidates.get("Titimangsa", set()) if not is_pure_placeholder(t)]
+        if titi_cands:
+            log_callback(f"  ✔ Titimangsa: {', '.join(sorted(titi_cands))}")
+        mapel_cands = [m for m in candidates.get("Mata Pelajaran", set()) if not is_pure_placeholder(m)]
+        if mapel_cands:
+            log_callback(f"  ✔ Mata Pelajaran: {', '.join(sorted(mapel_cands))}")
+        fase_cands = [f for f in candidates.get("Fase / Kelas", set()) if not is_pure_placeholder(f)]
+        if fase_cands:
+            log_callback(f"  ✔ Fase / Kelas: {', '.join(sorted(fase_cands))}")
 
     # Kumpulkan nilai 'new' yang diketahui dari defaults atau current_rules
     known_new: Dict[str, str] = dict(defaults or {})
@@ -400,48 +438,98 @@ def predict_rules_from_file(
             })
 
     if current_rules:
-        return smart_merge_rules(current_rules, predicted)
-    return predicted
+        result = smart_merge_rules(current_rules, predicted)
+    else:
+        result = predicted
+
+    if log_callback:
+        log_callback(f"  → Selesai memindai {fname}: {len(result)} aturan disiapkan.")
+
+    return result
 
 
 def predict_rules_from_folder(
     folder_path: str,
     current_rules: Optional[List[Dict[str, str]]] = None,
-    defaults: Optional[Dict[str, str]] = None
+    defaults: Optional[Dict[str, str]] = None,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    log_callback: Optional[Callable[[str], None]] = None,
+    cancel_event: Optional[Any] = None
 ) -> List[Dict[str, str]]:
     """
     Memindai semua file Word (.docx dan .doc) dalam folder input, mengagregasi semua variasi
     teks lama unik antar dokumen, dan menghasilkan saran aturan terpadu tanpa data pribadi hardcoded.
+    Mendukung callback progres, live log, dan pembatalan aman (graceful cancel).
     """
     if not os.path.isdir(folder_path):
+        if log_callback:
+            log_callback(f"[WARN] Folder tidak ditemukan: {folder_path}")
         return current_rules or []
+
+    all_files: List[str] = []
+    for root, _, files in os.walk(folder_path):
+        for f in files:
+            if (f.lower().endswith(".docx") or f.lower().endswith(".doc")) and not f.startswith("~$"):
+                all_files.append(os.path.join(root, f))
+
+    if not all_files:
+        if log_callback:
+            log_callback("[WARN] Tidak ditemukan berkas Word (.docx, .doc) dalam folder.")
+        return current_rules or []
+
+    if log_callback:
+        log_callback(f"[START] Ditemukan {len(all_files)} berkas Word. Memulai pemindaian...\n")
 
     all_predicted: List[Dict[str, str]] = []
     seen_pairs: Set[Tuple[str, str]] = set()
 
-    for root, _, files in os.walk(folder_path):
-        for f in files:
-            if (f.lower().endswith(".docx") or f.lower().endswith(".doc")) and not f.startswith("~$"):
-                full_p = os.path.join(root, f)
-                try:
-                    file_rules = predict_rules_from_file(full_p, defaults=defaults)
-                    for r in file_rules:
-                        key = (r["label"], r["old"])
-                        if key not in seen_pairs:
-                            seen_pairs.add(key)
-                            all_predicted.append(r)
-                except Exception as e:
-                    logger.warning("Gagal memindai file %s untuk prediksi: %s", full_p, e)
+    for idx, full_p in enumerate(all_files, start=1):
+        if cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)():
+            if log_callback:
+                log_callback(f"\n[CANCEL] Pemindaian dihentikan oleh pengguna pada berkas {idx-1}/{len(all_files)}.")
+            break
+
+        fname = os.path.basename(full_p)
+        if progress_callback:
+            progress_callback(idx, len(all_files), fname)
+        if log_callback:
+            log_callback(f"[{idx}/{len(all_files)}] Memindai: {fname}")
+
+        try:
+            file_rules = predict_rules_from_file(full_p, defaults=defaults, log_callback=log_callback)
+            new_found = 0
+            for r in file_rules:
+                key = (r["label"], r["old"])
+                if key not in seen_pairs:
+                    seen_pairs.add(key)
+                    all_predicted.append(r)
+                    new_found += 1
+            if log_callback and new_found > 0:
+                log_callback(f"  + Menambahkan {new_found} variasi aturan baru (Total unik: {len(all_predicted)})\n")
+            elif log_callback:
+                log_callback("")
+        except Exception as e:
+            logger.warning("Gagal memindai file %s untuk prediksi: %s", full_p, e)
+            if log_callback:
+                log_callback(f"  [ERROR] Gagal memindai {fname}: {e}\n")
 
     if current_rules:
-        return smart_merge_rules(current_rules, all_predicted)
-    return all_predicted
+        final_rules = smart_merge_rules(current_rules, all_predicted)
+    else:
+        final_rules = all_predicted
+
+    if log_callback:
+        log_callback(f"[DONE] Pemindaian selesai. Total variasi aturan terstruktur: {len(final_rules)}")
+
+    return final_rules
 
 
 def collect_unknown_labels(
     path_or_dir: str,
     dictionary: Optional[Any] = None,
-    max_labels: int = 200
+    max_labels: int = 200,
+    log_callback: Optional[Callable[[str], None]] = None,
+    cancel_event: Optional[Any] = None
 ) -> Dict[str, int]:
     """
     Mengumpulkan label berdekatan dengan placeholder / isian yang tidak cocok ke field mana pun di kamus.
@@ -478,6 +566,8 @@ def collect_unknown_labels(
             unknown_counts[display_candidate] = unknown_counts.get(display_candidate, 0) + 1
 
     for fpath in file_paths:
+        if cancel_event is not None and getattr(cancel_event, "is_set", lambda: False)():
+            break
         try:
             doc = load_document(fpath)
             for table in doc.tables:
@@ -511,4 +601,7 @@ def collect_unknown_labels(
             logger.debug("Gagal memindai unknown labels dari %s: %s", fpath, e)
 
     sorted_items = sorted(unknown_counts.items(), key=lambda x: x[1], reverse=True)[:max_labels]
-    return dict(sorted_items)
+    res_dict = dict(sorted_items)
+    if log_callback and res_dict:
+        log_callback(f"[INFO] Terdeteksi {len(res_dict)} label yang belum dikenali dalam kamus.")
+    return res_dict
