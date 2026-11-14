@@ -56,8 +56,10 @@ class ReplacementView(ttk.LabelFrame):
             ("Titimangsa (Tempat, Tgl)", "", "Jakarta, 15 Juli 2026"),
         ]
 
+        self.active_profile_name = "Default Profile"
+
         self._build_ui()
-        self.load_default_rows()
+        self.load_initial_profile()
 
     def _build_ui(self):
         # 1. Panel Mode Pencarian
@@ -115,7 +117,18 @@ class ReplacementView(ttk.LabelFrame):
         bold = ("Segoe UI", 9, "bold")
         ttk.Label(header, text="Kategori / Label", font=bold).grid(row=0, column=0, sticky="w", padx=3)
         ttk.Label(header, text="Teks Lama di RPP (opsional / cari persis)", font=bold).grid(row=0, column=1, sticky="w", padx=3)
-        ttk.Label(header, text="Teks Baru (Target Isian)", font=bold).grid(row=0, column=2, sticky="w", padx=3)
+
+        col2_hdr = ttk.Frame(header)
+        col2_hdr.grid(row=0, column=2, sticky="w", padx=3)
+        ttk.Label(col2_hdr, text="Teks Baru (Target Isian)", font=bold).pack(side="left")
+        self.lbl_profile_badge = ttk.Label(
+            col2_hdr,
+            text="[Default Profile]",
+            font=("Segoe UI", 8, "bold"),
+            foreground="#0d47a1"
+        )
+        self.lbl_profile_badge.pack(side="left", padx=(6, 0))
+
         ttk.Label(header, width=4).grid(row=0, column=3)
 
         # 4. Canvas Scrollable untuk Baris
@@ -347,6 +360,76 @@ class ReplacementView(ttk.LabelFrame):
         os.makedirs(cfg_dir, exist_ok=True)
         return cfg_dir
 
+    def _get_last_profile_path(self) -> str:
+        """Mengembalikan path file cache profil sesi terakhir di direktori config."""
+        return os.path.join(self._get_config_dir(), "last_profile.json")
+
+    def set_active_profile_name(self, name: str) -> None:
+        """Memperbarui nama profil aktif dan tampilan badge di samping kanan 'Teks Baru (Target Isian)'."""
+        clean_name = name.strip() if name and name.strip() else "Default Profile"
+        self.active_profile_name = clean_name
+        if not hasattr(self, "lbl_profile_badge"):
+            return
+        if self.active_profile_name.lower() in ("default profile", "default", "default_profile"):
+            self.lbl_profile_badge.configure(
+                text="[Default Profile]",
+                foreground="#0d47a1"
+            )
+        else:
+            self.lbl_profile_badge.configure(
+                text=f"[Profil: {self.active_profile_name}]",
+                foreground="#1b5e20"
+            )
+
+    def save_last_used_profile(
+        self,
+        profile_name: str,
+        rules: Optional[List[Dict[str, str]]] = None,
+        path: Optional[str] = None
+    ) -> None:
+        """Menyimpan data profil terakhir yang aktif ke config/last_profile.json."""
+        if rules is None:
+            rules = self.get_rules()
+        data = {
+            "profile_name": profile_name,
+            "profile_path": path,
+            "rules": rules
+        }
+        try:
+            with open(self._get_last_profile_path(), "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning("Gagal menyimpan profil terakhir: %s", e)
+
+    def load_initial_profile(self) -> None:
+        """Memuat profil terakhir yang digunakan saat memulai sesi baru, atau profil default jika belum ada."""
+        last_file = self._get_last_profile_path()
+        if os.path.isfile(last_file):
+            try:
+                with open(last_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                rules = data.get("rules", [])
+                pname = data.get("profile_name", "Default Profile")
+                if rules and isinstance(rules, list):
+                    self.apply_rules_to_table(rules)
+                    self.set_active_profile_name(pname)
+                    return
+            except Exception as e:
+                logger.warning("Gagal membaca profil sesi terakhir dari %s: %s", last_file, e)
+
+        # Fallback ke default rows
+        self.load_default_rows()
+        self.set_active_profile_name("Default Profile")
+
+    def reset_to_default_profile(self) -> None:
+        """Mengembalikan tabel ke profil aturan bawaan (Default Profile)."""
+        for item in list(self.rows_data):
+            item[3].destroy()
+        self.rows_data.clear()
+        self.load_default_rows()
+        self.set_active_profile_name("Default Profile")
+        self.save_last_used_profile("Default Profile", rules=self.get_rules())
+
     def save_preset(self):
         cfg_dir = self._get_config_dir()
         path = filedialog.asksaveasfilename(
@@ -362,7 +445,10 @@ class ReplacementView(ttk.LabelFrame):
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(rules, f, indent=2, ensure_ascii=False)
-            messagebox.showinfo("Berhasil", f"Profil aturan berhasil disimpan ke:\n{path}")
+            profile_name = os.path.splitext(os.path.basename(path))[0]
+            self.set_active_profile_name(profile_name)
+            self.save_last_used_profile(profile_name, rules=rules, path=path)
+            messagebox.showinfo("Berhasil", f"Profil aturan '{profile_name}' berhasil disimpan ke:\n{path}")
         except Exception as e:
             messagebox.showerror("Gagal", f"Gagal menyimpan profil:\n{e}")
 
@@ -380,7 +466,10 @@ class ReplacementView(ttk.LabelFrame):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             self.apply_rules_to_table(data)
-            messagebox.showinfo("Berhasil", f"Profil aturan dimuat dari:\n{path}")
+            profile_name = os.path.splitext(os.path.basename(path))[0]
+            self.set_active_profile_name(profile_name)
+            self.save_last_used_profile(profile_name, rules=data, path=path)
+            messagebox.showinfo("Berhasil", f"Profil aturan '{profile_name}' dimuat dari:\n{path}")
         except Exception as e:
             messagebox.showerror("Gagal", f"Gagal memuat profil:\n{e}")
 
