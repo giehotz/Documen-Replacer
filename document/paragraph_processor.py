@@ -1,22 +1,34 @@
 """
 Pemroses teks pada objek Paragraph python-docx.
 Mempertahankan format (bold, italic, warna, font) walau teks terpotong di beberapa run.
+Mendukung elemen hyperlink (<w:hyperlink>) agar seluruh run teks dapat diakses dan disunting dengan presisi.
 """
 from typing import List, Tuple, Dict, Any
 import re
+from docx.text.run import Run
+
+
+def get_paragraph_runs(paragraph) -> List[Run]:
+    """
+    Mengembalikan seluruh runs (<w:r>) dalam paragraf,
+    termasuk runs yang berada di dalam elemen <w:hyperlink>.
+    """
+    if hasattr(paragraph, "_p") and paragraph._p is not None:
+        return [Run(r, paragraph) for r in paragraph._p.xpath('.//w:r')]
+    return getattr(paragraph, "runs", [])
 
 
 def get_paragraph_text(paragraph) -> str:
-    """Mengembalikan teks utuh dari semua runs dalam paragraf."""
-    return "".join(r.text for r in paragraph.runs)
+    """Mengembalikan teks utuh dari semua runs dalam paragraf (termasuk di dalam hyperlink)."""
+    return "".join(r.text for r in get_paragraph_runs(paragraph))
 
 
 def replace_span(paragraph, start: int, end: int, replacement: str) -> bool:
     """
     Mengganti potongan karakter pada indeks [start:end] dalam paragraph
-    dengan replacement, tetap menjaga formatting run Word.
+    dengan replacement, tetap menjaga formatting run Word (termasuk hyperlink).
     """
-    runs = paragraph.runs
+    runs = get_paragraph_runs(paragraph)
     if not runs or start >= end:
         return False
 
@@ -59,7 +71,7 @@ def replace_full_text_keep_style(paragraph, new_text: str) -> bool:
     tetap mempertahankan style (bold, underline, dsb) dari run pertama yang ada.
     Melindungi run yang berisi elemen gambar agar tidak terhapus.
     """
-    runs = paragraph.runs
+    runs = get_paragraph_runs(paragraph)
     if not runs:
         paragraph.text = new_text
         return True
@@ -79,7 +91,7 @@ def replace_by_pattern(paragraph, compiled_pattern_info: Tuple[Any, Dict[str, Li
     compiled_pattern_info = (regex_pattern, mapping_dict, case_sensitive)
     """
     pattern, mapping, case_sensitive = compiled_pattern_info
-    runs = paragraph.runs
+    runs = get_paragraph_runs(paragraph)
     if not runs:
         return 0
 

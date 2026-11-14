@@ -1182,7 +1182,7 @@ class ReplacementEngine:
                 e = meta.get("end", 0)
                 if p_idx < len(body_paras):
                     p_target = body_paras[p_idx]
-                    curr_text = p_target.text
+                    curr_text = get_paragraph_text(p_target)
                     if curr_text[s:e] == item.old_text:
                         if replace_span(p_target, s, e, item.new_text):
                             changes += 1
@@ -1214,7 +1214,7 @@ class ReplacementEngine:
                         cell = table.rows[r_idx].cells[c_idx]
                         if p_idx < len(cell.paragraphs):
                             p_target = cell.paragraphs[p_idx]
-                            curr_text = p_target.text
+                            curr_text = get_paragraph_text(p_target)
                             if curr_text[s:e] == item.old_text:
                                 if replace_span(p_target, s, e, item.new_text):
                                     changes += 1
