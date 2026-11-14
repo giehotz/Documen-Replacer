@@ -13,7 +13,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import List, Tuple, Dict, Any, Set, Optional
 
-from core.version import APP_TITLE
+from core.version import APP_TITLE, APP_NAME
 from core.doc_compat_service import is_supported_word_file
 from core.replacement_engine import ReplacementEngine
 from core.field_dictionary import FieldDictionary
@@ -84,9 +84,30 @@ class SmartRPPReplacerApp:
         self.root.after(100, self._poll_queue)
 
     def _build_ui(self):
+        # 0. Menu Bar Sistem
+        self._build_menu_bar()
+
+        # Top Bar (Header Branding & Tombol Tentang Cepat)
+        top_bar = ttk.Frame(self.root, padding=(10, 6, 10, 4))
+        top_bar.pack(fill="x")
+
+        ttk.Label(
+            top_bar,
+            text=f"📚 {APP_NAME}",
+            font=("Segoe UI", 11, "bold"),
+            foreground="#1e3a8a",
+        ).pack(side="left")
+
+        about_btn = ttk.Button(
+            top_bar,
+            text="ℹ️ Tentang & Panduan",
+            command=lambda: self._open_about_dialog(0),
+        )
+        about_btn.pack(side="right")
+
         # Container Utama: Tab Bar (Notebook) di Bagian Atas
         self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill="both", expand=True, padx=6, pady=(6, 2))
+        self.notebook.pack(fill="both", expand=True, padx=6, pady=(2, 2))
 
         # =====================================================================
         # TAB 1: PENGGANTIAN DATA DOKUMEN & TANDA TANGAN
@@ -109,6 +130,36 @@ class SmartRPPReplacerApp:
             self.notebook.add(self.tab_mail_merge, text=" 🖨️ Mail Merge Massal ")
         else:
             self.tab_mail_merge = None
+
+    def _build_menu_bar(self):
+        """Membangun Menu Bar sistem di bagian paling atas aplikasi."""
+        menubar = tk.Menu(self.root)
+
+        # Menu Berkas
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="📁 Pilih Folder Asli (Input)...", command=self._browse_input)
+        file_menu.add_command(label="📁 Pilih Folder Hasil (Output)...", command=self._browse_output)
+        file_menu.add_separator()
+        file_menu.add_command(label="Keluar", command=self.root.quit)
+        menubar.add_cascade(label="Berkas", menu=file_menu)
+
+        # Menu Bantuan
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="📖 Panduan Penggunaan", command=lambda: self._open_about_dialog(1))
+        help_menu.add_command(label="⚖️ Perjanjian & Lisensi", command=lambda: self._open_about_dialog(2))
+        help_menu.add_separator()
+        help_menu.add_command(label=f"ℹ️ Tentang {APP_NAME}...", command=lambda: self._open_about_dialog(0))
+        menubar.add_cascade(label="Bantuan", menu=help_menu)
+
+        self.root.config(menu=menubar)
+
+    def _open_about_dialog(self, initial_tab: int = 0):
+        """Membuka dialog modular Tentang Aplikasi."""
+        try:
+            from gui.about_dialog import AboutDialog
+            AboutDialog(self.root, initial_tab=initial_tab)
+        except Exception as e:
+            self._log(f"[ERROR] Gagal membuka dialog Tentang: {e}")
 
     def _build_replacer_tab(self, parent: ttk.Frame):
         """Membangun antarmuka Tab 1: Penggantian RPP."""
