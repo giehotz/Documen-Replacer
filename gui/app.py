@@ -73,8 +73,17 @@ class SmartRPPReplacerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(APP_TITLE)
-        self.root.geometry("1020x820")
-        self.root.minsize(880, 680)
+        self.root.geometry("1080x820")
+        self.root.minsize(920, 680)
+
+        # Otomatis Maximized menyesuaikan layar monitor
+        try:
+            self.root.state("zoomed")
+        except Exception:
+            try:
+                self.root.attributes("-zoomed", True)
+            except Exception:
+                pass
 
         self.field_dictionary = FieldDictionary.load()
         self.engine = ReplacementEngine(field_dictionary=self.field_dictionary)
@@ -107,11 +116,25 @@ class SmartRPPReplacerApp:
             text="ℹ️ Tentang & Panduan",
             command=lambda: self._open_about_dialog(0),
         )
-        about_btn.pack(side="right")
+        about_btn.pack(side="right", padx=(4, 0))
 
-        # Container Utama: Tab Bar (Notebook) di Bagian Atas
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill="both", expand=True, padx=6, pady=(2, 2))
+        self.btn_toggle_log = ttk.Button(
+            top_bar,
+            text="📋 Sembunyikan Log",
+            command=self._toggle_log_panel,
+        )
+        self.btn_toggle_log.pack(side="right", padx=(0, 4))
+
+        # Container Utama Horizontal: Notebook di Kiri, Sidebar Log Global di Kanan
+        self.paned_main = ttk.PanedWindow(self.root, orient="horizontal")
+        self.paned_main.pack(fill="both", expand=True, padx=6, pady=(2, 2))
+
+        # Pane Kiri: Lembar Kerja Seluruh Tab
+        self.left_container = ttk.Frame(self.paned_main)
+        self.paned_main.add(self.left_container, weight=3)
+
+        self.notebook = ttk.Notebook(self.left_container)
+        self.notebook.pack(fill="both", expand=True)
 
         # =====================================================================
         # TAB 1: PENGGANTIAN DATA DOKUMEN & TANDA TANGAN
@@ -135,6 +158,12 @@ class SmartRPPReplacerApp:
         else:
             self.tab_mail_merge = None
 
+        # Pane Kanan: Sidebar Log Global
+        self.log_container = ttk.Frame(self.paned_main, width=340)
+        self.paned_main.add(self.log_container, weight=1)
+        self.log_visible = True
+        self._build_log_sidebar(self.log_container)
+
     def _build_menu_bar(self):
         """Membangun Menu Bar sistem di bagian paling atas aplikasi."""
         menubar = tk.Menu(self.root)
@@ -146,6 +175,11 @@ class SmartRPPReplacerApp:
         file_menu.add_separator()
         file_menu.add_command(label="Keluar", command=self.root.quit)
         menubar.add_cascade(label="Berkas", menu=file_menu)
+
+        # Menu Tampilan
+        view_menu = tk.Menu(menubar, tearoff=0)
+        view_menu.add_command(label="📋 Sembunyikan / Tampilkan Log", command=self._toggle_log_panel)
+        menubar.add_cascade(label="Tampilan", menu=view_menu)
 
         # Menu Bantuan
         help_menu = tk.Menu(menubar, tearoff=0)
@@ -217,7 +251,7 @@ class SmartRPPReplacerApp:
         )
         self.replacement_view.pack(fill="both", expand=True, padx=10, pady=4)
 
-        # 3. Panel Bawah (Eksekusi & Log)
+        # 3. Panel Bawah (Eksekusi Pemrosesan Dokumen)
         bottom_frame = ttk.Frame(parent, padding=8)
         bottom_frame.pack(fill="x", padx=2, pady=2)
 
@@ -226,20 +260,105 @@ class SmartRPPReplacerApp:
             text="PROSES SEMUA DOKUMEN SEKARANG",
             command=self._start_processing
         )
-        self.btn_process.pack(fill="x", ipady=5, pady=(0, 5))
+        self.btn_process.pack(fill="x", ipady=5, pady=(0, 4))
 
         self.progress = ttk.Progressbar(bottom_frame, mode="determinate")
-        self.progress.pack(fill="x", pady=(0, 5))
+        self.progress.pack(fill="x")
+
+    def _build_log_sidebar(self, parent: ttk.Frame):
+        """Membangun bilah samping (sidebar) panel log aktivitas di sisi kanan."""
+        container = ttk.Frame(parent, padding=(4, 2, 4, 4))
+        container.pack(fill="both", expand=True)
+
+        # Header Panel Log
+        header = ttk.Frame(container)
+        header.pack(fill="x", pady=(0, 4))
+
+        ttk.Label(
+            header,
+            text="📋 Log Aktivitas",
+            font=("Segoe UI", 9, "bold"),
+            foreground="#1e3a8a"
+        ).pack(side="left", anchor="w")
+
+        btn_box = ttk.Frame(header)
+        btn_box.pack(side="right")
+
+        ttk.Button(
+            btn_box,
+            text="📋 Salin",
+            width=7,
+            command=self._copy_log
+        ).pack(side="left", padx=2)
+
+        ttk.Button(
+            btn_box,
+            text="🗑 Bersihkan",
+            width=9,
+            command=self._clear_log
+        ).pack(side="left", padx=2)
+
+        ttk.Button(
+            btn_box,
+            text="✖",
+            width=3,
+            command=self._toggle_log_panel
+        ).pack(side="left", padx=(2, 0))
+
+        # Box Teks Log dengan Scrollbar Vertikal
+        text_frame = ttk.Frame(container)
+        text_frame.pack(fill="both", expand=True)
 
         self.log_box = tk.Text(
-            bottom_frame,
-            height=6,
+            text_frame,
+            wrap="word",
             state="disabled",
             bg="#1e1e1e",
             fg="#d4d4d4",
+            insertbackground="#ffffff",
             font=("Consolas", 9)
         )
-        self.log_box.pack(fill="x")
+        self.log_box.pack(side="left", fill="both", expand=True)
+
+        sb = ttk.Scrollbar(text_frame, orient="vertical", command=self.log_box.yview)
+        sb.pack(side="right", fill="y")
+        self.log_box.configure(yscrollcommand=sb.set)
+
+    def _toggle_log_panel(self):
+        """Menampilkan atau menyembunyikan panel log aktivitas di sisi kanan."""
+        if getattr(self, "log_visible", True):
+            try:
+                self.paned_main.forget(self.log_container)
+            except Exception:
+                pass
+            self.log_visible = False
+            self.btn_toggle_log.configure(text="📋 Tampilkan Log")
+        else:
+            try:
+                self.paned_main.add(self.log_container, weight=1)
+            except Exception:
+                pass
+            self.log_visible = True
+            self.btn_toggle_log.configure(text="📋 Sembunyikan Log")
+
+    def _clear_log(self):
+        """Mengosongkan teks riwayat log aktivitas."""
+        if hasattr(self, "log_box") and self.log_box:
+            self.log_box.configure(state="normal")
+            self.log_box.delete("1.0", "end")
+            self.log_box.configure(state="disabled")
+
+    def _copy_log(self):
+        """Menyalin seluruh isi riwayat log aktivitas ke clipboard sistem."""
+        if hasattr(self, "log_box") and self.log_box:
+            content = self.log_box.get("1.0", "end").strip()
+            if content:
+                try:
+                    self.root.clipboard_clear()
+                    self.root.clipboard_append(content)
+                    self._log("[INFO] Seluruh riwayat log disalin ke clipboard.")
+                except Exception as e:
+                    self._log(f"[WARN] Gagal menyalin ke clipboard: {e}")
 
     def _browse_input(self):
         folder = filedialog.askdirectory(title="Pilih Folder Berisi RPP Asli (.docx)")
