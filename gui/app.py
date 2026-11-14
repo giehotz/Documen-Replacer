@@ -43,6 +43,8 @@ def resolve_output_subfolder(input_path: str, base_docs_dir: str = "") -> str:
     -> '06_Kelas 6\\Tahun Pelajaran 2020-2021'
     """
     norm_in = os.path.normpath(input_path)
+    if os.path.isfile(norm_in) or (not os.path.isdir(norm_in) and os.path.splitext(norm_in)[1]):
+        norm_in = os.path.dirname(norm_in)
     if not base_docs_dir:
         base_docs_dir = os.path.normpath(
             os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
@@ -170,7 +172,8 @@ class SmartRPPReplacerApp:
 
         # Menu Berkas
         file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="📁 Pilih Folder Asli (Input)...", command=self._browse_input)
+        file_menu.add_command(label="📄 Pilih 1 Berkas Asli (Input)...", command=self._browse_input_file)
+        file_menu.add_command(label="📁 Pilih Folder Asli (Input)...", command=self._browse_input_folder)
         file_menu.add_command(label="📁 Pilih Folder Hasil (Output)...", command=self._browse_output)
         file_menu.add_separator()
         file_menu.add_command(label="Keluar", command=self.root.quit)
@@ -211,20 +214,24 @@ class SmartRPPReplacerApp:
         else:
             self.domain_selector = None
 
-        # 1. Panel Folder
-        folder_frame = ttk.LabelFrame(parent, text=" 1. Lokasi Folder Dokumen Word (.docx, .doc) ", padding=10)
+        # 1. Panel Folder & Berkas
+        folder_frame = ttk.LabelFrame(parent, text=" 1. Dokumen Word atau Folder Input (.docx, .doc) ", padding=10)
         folder_frame.pack(fill="x", padx=10, pady=(8, 4))
         folder_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(folder_frame, text="Folder Asli (Input):").grid(row=0, column=0, sticky="w", pady=3)
+        ttk.Label(folder_frame, text="Dokumen Asli (Input):").grid(row=0, column=0, sticky="w", pady=3)
         self.input_dir_var = tk.StringVar()
         ttk.Entry(folder_frame, textvariable=self.input_dir_var).grid(row=0, column=1, padx=8, pady=3, sticky="ew")
-        ttk.Button(folder_frame, text="Pilih Folder...", command=self._browse_input).grid(row=0, column=2, pady=3)
+
+        btn_input_frame = ttk.Frame(folder_frame)
+        btn_input_frame.grid(row=0, column=2, pady=3, sticky="e")
+        ttk.Button(btn_input_frame, text="📄 Pilih Berkas...", command=self._browse_input_file).pack(side="left", padx=(0, 4))
+        ttk.Button(btn_input_frame, text="📁 Pilih Folder...", command=self._browse_input_folder).pack(side="left")
 
         ttk.Label(folder_frame, text="Folder Hasil (Output):").grid(row=1, column=0, sticky="w", pady=3)
         self.output_dir_var = tk.StringVar(value=BASE_OUTPUT_DIR)
         ttk.Entry(folder_frame, textvariable=self.output_dir_var).grid(row=1, column=1, padx=8, pady=3, sticky="ew")
-        ttk.Button(folder_frame, text="Pilih Folder...", command=self._browse_output).grid(row=1, column=2, pady=3)
+        ttk.Button(folder_frame, text="📁 Pilih Folder...", command=self._browse_output).grid(row=1, column=2, pady=3)
 
         opts_frame = ttk.Frame(folder_frame)
         opts_frame.grid(row=2, column=1, sticky="w", pady=(4, 0))
@@ -239,6 +246,18 @@ class SmartRPPReplacerApp:
         ttk.Checkbutton(opts_frame, text="Tampilkan pratinjau", variable=self.preview_var).pack(side="left", padx=(0, 10))
         ttk.Checkbutton(opts_frame, text="Lewati keyakinan rendah", variable=self.skip_low_var).pack(side="left", padx=(0, 10))
         ttk.Checkbutton(opts_frame, text="Langsung ekspor ke PDF setelah selesai", variable=self.auto_pdf_var).pack(side="left")
+
+        # Label status/mode input dinamis (single file vs folder)
+        self.lbl_input_mode = ttk.Label(
+            folder_frame,
+            text="Belum memilih berkas atau folder input.",
+            font=("Segoe UI", 8, "italic"),
+            foreground="#666666"
+        )
+        self.lbl_input_mode.grid(row=3, column=1, sticky="w", padx=8, pady=(2, 0))
+
+        # Hubungkan listener perubahan path input
+        self.input_dir_var.trace_add("write", lambda *args: self._on_input_target_changed())
 
         # 2. Panel Aturan Penggantian
         self.replacement_view = ReplacementView(
@@ -360,13 +379,79 @@ class SmartRPPReplacerApp:
                 except Exception as e:
                     self._log(f"[WARN] Gagal menyalin ke clipboard: {e}")
 
-    def _browse_input(self):
-        folder = filedialog.askdirectory(title="Pilih Folder Berisi RPP Asli (.docx)")
+    def _browse_input_file(self):
+        filetypes = [
+            ("Semua Dokumen Word", "*.docx;*.doc"),
+            ("Word Document (.docx)", "*.docx"),
+            ("Word 97-2003 Document (.doc)", "*.doc"),
+            ("Semua File", "*.*")
+        ]
+        file_path = filedialog.askopenfilename(
+            title="Pilih 1 Berkas Dokumen Word Asli",
+            filetypes=filetypes
+        )
+        if file_path:
+            norm = os.path.normpath(file_path)
+            self.input_dir_var.set(norm)
+            subfolder = resolve_output_subfolder(norm)
+            self.output_dir_var.set(os.path.join(BASE_OUTPUT_DIR, subfolder))
+            self._log(f"[INFO] Memilih berkas tunggal: {os.path.basename(norm)}")
+
+    def _browse_input_folder(self):
+        folder = filedialog.askdirectory(title="Pilih Folder Berisi Dokumen Asli (.docx/.doc)")
         if folder:
             norm = os.path.normpath(folder)
             self.input_dir_var.set(norm)
             subfolder = resolve_output_subfolder(norm)
             self.output_dir_var.set(os.path.join(BASE_OUTPUT_DIR, subfolder))
+            self._log(f"[INFO] Memilih folder input: {norm}")
+
+    def _browse_input(self):
+        """Alias kompatibilitas pemilih folder input."""
+        self._browse_input_folder()
+
+    def _on_input_target_changed(self):
+        """Memperbarui indikator status mode (berkas tunggal vs folder) dan label tombol aksi."""
+        target = self.input_dir_var.get().strip()
+        if not target:
+            if hasattr(self, "lbl_input_mode"):
+                self.lbl_input_mode.configure(
+                    text="Belum memilih berkas atau folder input.",
+                    foreground="#666666"
+                )
+            if hasattr(self, "btn_process"):
+                self.btn_process.configure(text="PROSES SEMUA DOKUMEN SEKARANG")
+            return
+
+        if os.path.isfile(target):
+            fname = os.path.basename(target)
+            if is_supported_word_file(fname):
+                msg = f"📄 Berkas Tunggal Siap Diproses: {fname}"
+                color = "#0066cc"
+            else:
+                msg = f"⚠️ Berkas '{fname}' bukan format Word (.docx/.doc) yang didukung!"
+                color = "#cc6600"
+            if hasattr(self, "lbl_input_mode"):
+                self.lbl_input_mode.configure(text=msg, foreground=color)
+            if hasattr(self, "btn_process"):
+                self.btn_process.configure(text="PROSES 1 DOKUMEN SEKARANG")
+        elif os.path.isdir(target):
+            dname = os.path.basename(target) or target
+            if hasattr(self, "lbl_input_mode"):
+                self.lbl_input_mode.configure(
+                    text=f"📁 Folder Siap Dipindai: {dname}",
+                    foreground="#2e7d32"
+                )
+            if hasattr(self, "btn_process"):
+                self.btn_process.configure(text="PROSES SEMUA DOKUMEN DALAM FOLDER")
+        else:
+            if hasattr(self, "lbl_input_mode"):
+                self.lbl_input_mode.configure(
+                    text="⚠️ Lokasi berkas atau folder tidak ditemukan di penyimpanan komputer.",
+                    foreground="#cc0000"
+                )
+            if hasattr(self, "btn_process"):
+                self.btn_process.configure(text="PROSES SEMUA DOKUMEN SEKARANG")
 
     def _browse_output(self):
         folder = filedialog.askdirectory(title="Pilih Folder Penyimpanan Hasil")
@@ -475,18 +560,27 @@ class SmartRPPReplacerApp:
     def _collect_files(self, in_dir: str, out_dir: str, recursive: bool) -> List[Tuple[str, str]]:
         result = []
         out_abs = os.path.abspath(out_dir)
-        if recursive:
-            for base, dirs, names in os.walk(in_dir):
-                dirs[:] = [d for d in dirs if os.path.abspath(os.path.join(base, d)) != out_abs]
-                for n in names:
-                    if is_supported_word_file(n):
-                        full = os.path.join(base, n)
-                        result.append((full, os.path.relpath(full, in_dir)))
-        else:
-            for n in os.listdir(in_dir):
-                full = os.path.join(in_dir, n)
-                if os.path.isfile(full) and is_supported_word_file(n):
-                    result.append((full, n))
+
+        # Kasus 1: Input adalah Berkas Tunggal (.docx / .doc)
+        if os.path.isfile(in_dir):
+            if is_supported_word_file(in_dir):
+                result.append((in_dir, os.path.basename(in_dir)))
+            return result
+
+        # Kasus 2: Input adalah Folder
+        if os.path.isdir(in_dir):
+            if recursive:
+                for base, dirs, names in os.walk(in_dir):
+                    dirs[:] = [d for d in dirs if os.path.abspath(os.path.join(base, d)) != out_abs]
+                    for n in names:
+                        if is_supported_word_file(n):
+                            full = os.path.join(base, n)
+                            result.append((full, os.path.relpath(full, in_dir)))
+            else:
+                for n in os.listdir(in_dir):
+                    full = os.path.join(in_dir, n)
+                    if os.path.isfile(full) and is_supported_word_file(n):
+                        result.append((full, n))
         return result
 
     def _on_dictionary_changed(self):
@@ -505,18 +599,29 @@ class SmartRPPReplacerApp:
         in_dir = self.input_dir_var.get().strip()
         out_dir = self.output_dir_var.get().strip()
 
-        if not in_dir or not os.path.isdir(in_dir):
-            messagebox.showwarning("Peringatan", "Pilih Folder Asli (Input) yang valid terlebih dahulu!")
+        if not in_dir or not os.path.exists(in_dir):
+            messagebox.showwarning("Peringatan", "Pilih Berkas atau Folder Dokumen Word yang valid terlebih dahulu!")
             return
         if not out_dir:
             messagebox.showwarning("Peringatan", "Tentukan Folder Hasil (Output) terlebih dahulu!")
             return
-        if os.path.abspath(in_dir) == os.path.abspath(out_dir):
-            if not messagebox.askyesno(
-                "Peringatan",
-                "Folder hasil sama dengan folder asli.\nFile asli akan TERTIMPA.\n\nLanjutkan?"
-            ):
-                return
+
+        if os.path.isfile(in_dir):
+            out_file = os.path.join(out_dir, os.path.basename(in_dir))
+            if os.path.abspath(in_dir) == os.path.abspath(out_file):
+                if not messagebox.askyesno(
+                    "Peringatan Penimpaan Berkas",
+                    f"Berkas hasil akan disimpan di lokasi yang sama persis dengan berkas asli:\n{out_file}\n\n"
+                    "Berkas asli akan TERTIMPA secara permanen.\nApakah Anda yakin ingin melanjutkan?"
+                ):
+                    return
+        elif os.path.isdir(in_dir):
+            if os.path.abspath(in_dir) == os.path.abspath(out_dir):
+                if not messagebox.askyesno(
+                    "Peringatan",
+                    "Folder hasil sama dengan folder asli.\nFile asli di dalam folder akan TERTIMPA.\n\nLanjutkan?"
+                ):
+                    return
 
         mode = self.replacement_view.get_search_mode()
 
@@ -542,7 +647,10 @@ class SmartRPPReplacerApp:
 
         files = self._collect_files(in_dir, out_dir, self.sub_var.get())
         if not files:
-            messagebox.showinfo("Info", "Tidak ditemukan file Word (.docx atau .doc) di folder input.")
+            if os.path.isfile(in_dir):
+                messagebox.showinfo("Info", "Berkas yang dipilih bukan dokumen Word yang didukung (.docx atau .doc).")
+            else:
+                messagebox.showinfo("Info", "Tidak ditemukan file Word (.docx atau .doc) di folder input.")
             return
 
         case_sensitive = self.case_var.get()
@@ -555,15 +663,16 @@ class SmartRPPReplacerApp:
         self.btn_process.configure(state="disabled")
         self.progress.configure(maximum=len(files), value=0)
 
+        count_desc = f"1 dokumen ({files[0][1]})" if len(files) == 1 else f"{len(files)} dokumen"
         if use_preview:
-            self._log(f"--- Memindai {len(files)} dokumen untuk Pratinjau Terpadu (Mode: {mode}) ---")
+            self._log(f"--- Memindai {count_desc} untuk Pratinjau Terpadu (Mode: {mode}) ---")
             threading.Thread(
                 target=self._worker_plan,
                 args=(files, out_dir, rules, mode, case_sensitive, skip_low),
                 daemon=True
             ).start()
         else:
-            self._log(f"--- Memulai pemrosesan langsung {len(files)} dokumen (Mode: {mode}) ---")
+            self._log(f"--- Memulai pemrosesan langsung {count_desc} (Mode: {mode}) ---")
             threading.Thread(
                 target=self._worker_direct,
                 args=(files, out_dir, rules, mode, case_sensitive, skip_low),
