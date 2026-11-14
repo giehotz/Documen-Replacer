@@ -190,6 +190,37 @@ class TestPredictionLiveLog(unittest.TestCase):
         finally:
             root.destroy()
 
+    def test_predict_progress_dialog_ui_layout(self):
+        """Memastikan tombol aksi di bagian bawah dialog terpasang dengan side=bottom dan terlihat."""
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()
+        except Exception:
+            self.skipTest("Tkinter display tidak tersedia di lingkungan pengujian.")
+
+        try:
+            from gui.predict_dialog import PredictProgressDialog
+            # Mock worker agar tidak menjalankan background loop riil
+            with patch.object(PredictProgressDialog, "_worker_run"):
+                dlg = PredictProgressDialog(
+                    parent=root,
+                    target_path=self.test_dir,
+                    is_folder=True
+                )
+                self.assertTrue(hasattr(dlg, "btn_action"))
+                self.assertTrue(hasattr(dlg, "lbl_bottom_hint"))
+                self.assertEqual(dlg.btn_action.cget("text"), "Batal")
+
+                # Simulasi event selesai
+                dlg.msg_queue.put(("done", ([{"label": "Test", "old": "A", "new": "B"}], {})))
+                dlg._poll_queue()
+
+                self.assertEqual(dlg.btn_action.cget("text"), "Lihat Ringkasan & Terapkan ➜")
+                self.assertIn("selesai", dlg.lbl_bottom_hint.cget("text").lower())
+        finally:
+            root.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()

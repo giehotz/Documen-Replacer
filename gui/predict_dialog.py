@@ -54,8 +54,8 @@ class PredictProgressDialog(tk.Toplevel):
         self.unknown_labels: Dict[str, int] = {}
 
         self.title("Pemindaian & Prediksi Dokumen - Smart RPP Replacer")
-        self.geometry("680x480")
-        self.minsize(560, 380)
+        self.geometry("740x520")
+        self.minsize(620, 420)
         self.transient(parent.winfo_toplevel())
         self.grab_set()
 
@@ -71,7 +71,7 @@ class PredictProgressDialog(tk.Toplevel):
     def _build_ui(self):
         # 1. Header Frame
         top_frame = ttk.Frame(self, padding=(12, 10))
-        top_frame.pack(fill="x")
+        top_frame.pack(side="top", fill="x")
 
         target_name = os.path.basename(self.target_path) or self.target_path
         title_text = f"Memindai Folder: {target_name}" if self.is_folder else f"Menganalisis Dokumen: {target_name}"
@@ -89,7 +89,7 @@ class PredictProgressDialog(tk.Toplevel):
 
         # 2. Progress Frame
         prog_frame = ttk.Frame(self, padding=(12, 2))
-        prog_frame.pack(fill="x")
+        prog_frame.pack(side="top", fill="x")
 
         self.progress = ttk.Progressbar(prog_frame, mode="determinate")
         self.progress.pack(side="left", fill="x", expand=True)
@@ -97,9 +97,29 @@ class PredictProgressDialog(tk.Toplevel):
         self.lbl_pct = ttk.Label(prog_frame, text="0%", width=6, anchor="e", font=("Segoe UI", 9, "bold"))
         self.lbl_pct.pack(side="right", padx=(6, 0))
 
-        # 3. Live Log Box Frame
+        # 3. Bottom Button Frame (di-pack ke side='bottom' lebih awal agar selalu terlihat dan tidak terdorong)
+        bottom_frame = ttk.Frame(self, padding=(12, 10))
+        bottom_frame.pack(side="bottom", fill="x")
+
+        self.lbl_bottom_hint = ttk.Label(
+            bottom_frame,
+            text="",
+            font=("Segoe UI", 9, "italic"),
+            foreground="#2e7d32"
+        )
+        self.lbl_bottom_hint.pack(side="left")
+
+        self.btn_action = ttk.Button(
+            bottom_frame,
+            text="Batal",
+            width=14,
+            command=self._on_action_click
+        )
+        self.btn_action.pack(side="right")
+
+        # 4. Live Log Box Frame (mengisi ruang tengah)
         log_frame = ttk.Frame(self, padding=(12, 6))
-        log_frame.pack(fill="both", expand=True)
+        log_frame.pack(side="top", fill="both", expand=True)
 
         ttk.Label(log_frame, text="Live Log Deteksi & Analisis:", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0, 3))
 
@@ -130,18 +150,6 @@ class PredictProgressDialog(tk.Toplevel):
         self.log_box.tag_configure("error", foreground="#e06c75")
         self.log_box.tag_configure("cancel", foreground="#d19a66")
         self.log_box.tag_configure("bold", font=("Consolas", 9, "bold"))
-
-        # 4. Bottom Button Frame
-        bottom_frame = ttk.Frame(self, padding=(12, 10))
-        bottom_frame.pack(fill="x")
-
-        self.btn_action = ttk.Button(
-            bottom_frame,
-            text="Batal",
-            width=14,
-            command=self._on_action_click
-        )
-        self.btn_action.pack(side="right")
 
     def _append_log(self, text: str):
         """Menambahkan teks log ke dalam Text widget dengan pewarnaan tag."""
@@ -221,6 +229,16 @@ class PredictProgressDialog(tk.Toplevel):
                         self.lbl_status.configure(
                             text=f"Selesai 100%! {num_rules} aturan disiapkan. Klik 'Lihat Ringkasan & Terapkan' di bawah."
                         )
+
+                    if hasattr(self, "lbl_bottom_hint"):
+                        if self.was_cancelled:
+                            self.lbl_bottom_hint.configure(
+                                text=f"⚠️ Dihentikan ({num_rules} aturan tersimpan)."
+                            )
+                        else:
+                            self.lbl_bottom_hint.configure(
+                                text=f"✔ Pemindaian selesai (100% - {num_rules} aturan disiapkan)."
+                            )
 
                     self.btn_action.configure(
                         state="normal",
