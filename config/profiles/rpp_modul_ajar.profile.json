@@ -1,0 +1,55 @@
+{
+  "schema_version": 2,
+  "profile_id": "rpp_modul",
+  "display_name": "Perangkat Ajar (RPP / Modul Ajar)",
+  "description": "Profil untuk RPP, Modul Ajar, Silabus, PROTA, dan PROMES madrasah/sekolah",
+  "inherit": {
+    "from": "config/dictionary.default.json",
+    "fields": [
+      "nama_lembaga",
+      "nama_kepala",
+      "nip_kepala",
+      "jabatan_kepala",
+      "nama_guru",
+      "nip_guru",
+      "jabatan_guru",
+      "tahun_pelajaran",
+      "semester",
+      "titimangsa",
+      "mata_pelajaran",
+      "fase_kelas"
+    ]
+  },
+  "auto_detect": {
+    "strong": [
+      "Modul Ajar",
+      "Rencana Pelaksanaan Pembelajaran",
+      "Capaian Pembelajaran",
+      "Tujuan Pembelajaran"
+    ],
+    "weak": [
+      "Kompetensi Dasar",
+      "Alokasi Waktu",
+      "Mata Pelajaran",
+      "Fase",
+      "Kelas"
+    ],
+    "negative": [
+      "MEMUTUSKAN",
+      "SURAT KEPUTUSAN",
+      "BERITA ACARA",
+      "SURAT PERINTAH TUGAS",
+      "PIHAK KESATU"
+    ]
+  },
+  "global_never_match": [
+    "nama siswa",
+    "nama peserta didik",
+    "peserta didik",
+    "nomor rekening"
+  ],
+  "global_ignore_exact": [],
+  "fields": [],
+  "zones": [],
+  "sync": []
+}

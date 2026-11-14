@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "profile_id": "spt_penugasan",
+  "display_name": "Surat Perintah Tugas (SPT)",
+  "description": "Profil untuk Surat Perintah Tugas Tunggal dan Kolektif (SPPD/Dinas)",
+  "inherit": {
+    "from": "config/dictionary.default.json",
+    "fields": ["nama_lembaga", "jabatan_kepala", "nama_kepala", "nip_kepala"]
+  },
+  "auto_detect": {
+    "strong": ["SURAT PERINTAH TUGAS", "SURAT TUGAS", "Menugaskan kepada"],
+    "weak": ["Pangkat/Gol", "SPPD", "Lembar Ke", "Berangkat dari", "Dasar :"],
+    "negative": ["MEMUTUSKAN", "Menimbang", "BERITA ACARA", "PIHAK KESATU", "Modul Ajar", "Capaian Pembelajaran"]
+  },
+  "global_never_match": ["nomor rekening", "nomor telepon", "tanggal lahir", "tempat lahir"],
+  "global_ignore_exact": [],
+  "fields": [
+    {
+      "id": "nomor_spt",
+      "category": "Nomor SPT",
+      "display_label": "Nomor SPT",
+      "value_type": "doc_number",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["nomor spt", "nomor surat tugas", "no spt"],
+      "exact_only_synonyms": ["nomor", "no"],
+      "never_match": ["nomor rekening", "nomor induk pegawai"]
+    },
+    {
+      "id": "dasar_penugasan",
+      "category": "Dasar Surat Tugas",
+      "display_label": "Dasar Penugasan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["dasar surat", "dasar penugasan"],
+      "exact_only_synonyms": ["dasar"],
+      "never_match": []
+    },
+    {
+      "id": "keperluan_tugas",
+      "category": "Keperluan Tugas",
+      "display_label": "Keperluan Tugas",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["untuk keperluan", "keperluan tugas"],
+      "exact_only_synonyms": ["untuk"],
+      "never_match": []
+    },
+    {
+      "id": "tempat_tujuan",
+      "category": "Tempat Tujuan",
+      "display_label": "Tempat Tujuan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["tempat tujuan", "lokasi tugas"],
+      "exact_only_synonyms": ["tujuan"],
+      "never_match": []
+    }
+  ],
+  "zones": [
+    {
+      "zone_id": "meta_spt",
+      "anchors": ["SURAT PERINTAH TUGAS", "Nomor", "Dasar"],
+      "max_paragraphs": 10,
+      "fields": ["nomor_spt", "dasar_penugasan"]
+    },
+    {
+      "zone_id": "isi_spt",
+      "anchors": ["Menugaskan kepada", "Untuk"],
+      "max_paragraphs": 12,
+      "fields": ["keperluan_tugas", "tempat_tujuan"]
+    },
+    {
+      "zone_id": "penutup_spt",
+      "anchors": ["Ditetapkan di", "Kepala Madrasah"],
+      "max_paragraphs": 8,
+      "fields": ["jabatan_kepala", "nama_kepala", "nip_kepala"]
+    }
+  ]
+}

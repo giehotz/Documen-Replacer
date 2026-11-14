@@ -23,6 +23,13 @@ from gui.report_view import ReportDialog
 from gui.pdf_converter_view import PdfConverterView
 from services.report_service import ReportService
 
+try:
+    from gui.modules.domain_selector_bar import DomainSelectorBar
+    from gui.modules.mail_merge_view import MailMergeView
+except ImportError:
+    DomainSelectorBar = None
+    MailMergeView = None
+
 BASE_OUTPUT_DIR = os.path.join(os.path.expanduser("~"), "Documents", "MODUL", "Edited")
 
 
@@ -93,8 +100,27 @@ class SmartRPPReplacerApp:
         self.tab_pdf = PdfConverterView(self.notebook, on_status_msg=self._log)
         self.notebook.add(self.tab_pdf, text=" 📄 Konversi Word ke PDF ")
 
+        # =====================================================================
+        # TAB 3: GENERATOR DOKUMEN MASSAL (MAIL MERGE)
+        # =====================================================================
+        if MailMergeView is not None:
+            self.tab_mail_merge = MailMergeView(self.notebook)
+            self.notebook.add(self.tab_mail_merge, text=" 🖨️ Mail Merge Massal ")
+        else:
+            self.tab_mail_merge = None
+
     def _build_replacer_tab(self, parent: ttk.Frame):
         """Membangun antarmuka Tab 1: Penggantian RPP."""
+        # 0. Bilah Pemilih Jenis Dokumen Modular (PRD §7 & Fase 4)
+        if DomainSelectorBar is not None:
+            self.domain_selector = DomainSelectorBar(
+                parent,
+                on_domain_changed=self._on_domain_changed
+            )
+            self.domain_selector.pack(fill="x", padx=10, pady=(6, 2))
+        else:
+            self.domain_selector = None
+
         # 1. Panel Folder
         folder_frame = ttk.LabelFrame(parent, text=" 1. Lokasi Folder Dokumen Word (.docx, .doc) ", padding=10)
         folder_frame.pack(fill="x", padx=10, pady=(8, 4))
@@ -177,6 +203,10 @@ class SmartRPPReplacerApp:
         self.log_box.insert("end", message + "\n")
         self.log_box.see("end")
         self.log_box.configure(state="disabled")
+
+    def _on_domain_changed(self, domain_id: str):
+        """Handler pembaruan pilihan domain aktif dari DomainSelectorBar."""
+        self._log(f"[INFO] Domain dokumen aktif: {domain_id}")
 
     def _poll_queue(self):
         try:

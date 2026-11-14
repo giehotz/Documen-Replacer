@@ -1,0 +1,36 @@
+{
+  "sk_keputusan": {
+    "name": "Surat Keputusan (SK)",
+    "default_template": "{NO_URUT:03d}/{KODE_KLASIFIKASI}/{KODE_SATKER}/SK/{TAHUN}",
+    "description": "Format nomor baku Surat Keputusan Kepala Madrasah/Sekolah",
+    "default_variables": {
+      "KODE_KLASIFIKASI": "421.2",
+      "KODE_SATKER": "MIN.1"
+    }
+  },
+  "surat_dinas": {
+    "name": "Surat Dinas Biasa",
+    "default_template": "B-{NO_URUT:03d}/{KODE_SATKER}/{KODE_KLASIFIKASI}/{BULAN_2DIGIT}/{TAHUN}",
+    "description": "Format nomor surat keluar dinas tata persuratan",
+    "default_variables": {
+      "KODE_KLASIFIKASI": "PP.00",
+      "KODE_SATKER": "Min.01"
+    }
+  },
+  "surat_undangan": {
+    "name": "Surat Undangan Resmi",
+    "default_template": "B-{NO_URUT:03d}/{KODE_SATKER}/UND/{BULAN_ROMAWI}/{TAHUN}",
+    "description": "Format nomor surat undangan kegiatan rapat/pertemuan",
+    "default_variables": {
+      "KODE_SATKER": "Min.01"
+    }
+  },
+  "spt_penugasan": {
+    "name": "Surat Perintah Tugas (SPT)",
+    "default_template": "{NO_URUT:03d}/{KODE_SATKER}/SPT/{TAHUN}",
+    "description": "Format nomor surat tugas perjalanan dinas/kegiatan",
+    "default_variables": {
+      "KODE_SATKER": "Min.01"
+    }
+  }
+}

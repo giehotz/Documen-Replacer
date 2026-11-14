@@ -1,0 +1,41 @@
+{
+  "institution_profile": {
+    "nama_madrasah": "Madrasah Ibtidaiyah Negeri 1 Contoh",
+    "nsm": "111118010001",
+    "npsn": "10800001",
+    "alamat": "Jl. Pendidikan No. 123, Kecamatan Contoh, Kabupaten Contoh",
+    "kode_pos": "35000",
+    "telepon": "0721-123456",
+    "email": "min1contoh@kemenag.go.id",
+    "website": "min1contoh.sch.id",
+    "kode_satker": "Min.01",
+    "kode_klasifikasi_surat": "PP.00",
+    "tempat_penetapan": "Kota Contoh"
+  },
+  "headmaster_profile": {
+    "nama_kepala": "Budi Santoso, M.Pd",
+    "nip_kepala": "198001012005011001",
+    "pangkat_golongan": "Pembina / IV.a",
+    "jabatan": "Kepala Madrasah"
+  },
+  "teachers_sample": [
+    {
+      "nama": "Siti Aminah, S.Pd",
+      "nip": "198502022010012002",
+      "pangkat_golongan": "Penata / III.c",
+      "jabatan": "Guru Kelas",
+      "tugas_tambahan": "Wali Kelas 4"
+    },
+    {
+      "nama": "Ahmad Fauzi, S.Pd.I",
+      "nip": "198803032014031003",
+      "pangkat_golongan": "Penata Muda Tk. I / III.b",
+      "jabatan": "Guru PAI",
+      "tugas_tambahan": "Pembina Pramuka"
+    }
+  ],
+  "academic_year": {
+    "tahun_pelajaran": "2025/2026",
+    "semester": "Ganjil"
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "profile_id": "sk_keputusan",
+  "display_name": "Surat Keputusan (SK)",
+  "description": "Profil untuk SK Kepala Madrasah/Sekolah, SK Panitia, dan SK Pembagian Tugas",
+  "inherit": {
+    "from": "config/dictionary.default.json",
+    "fields": ["nama_lembaga", "jabatan_kepala", "nama_kepala", "nip_kepala"]
+  },
+  "auto_detect": {
+    "strong": ["SURAT KEPUTUSAN", "KEPUTUSAN KEPALA", "MEMUTUSKAN"],
+    "weak": ["Menimbang", "Mengingat", "Menetapkan", "KESATU", "Ditetapkan di"],
+    "negative": ["PIHAK KESATU", "BERITA ACARA"]
+  },
+  "global_never_match": ["nomor rekening", "nomor telepon", "tanggal lahir", "tempat lahir"],
+  "global_ignore_exact": [],
+  "fields": [
+    {
+      "id": "nomor_sk",
+      "category": "Nomor SK",
+      "display_label": "Nomor SK",
+      "value_type": "doc_number",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["nomor sk", "nomor keputusan", "no sk"],
+      "exact_only_synonyms": ["nomor", "no"],
+      "never_match": ["nomor induk pegawai", "nomor surat", "nomor rekening"]
+    },
+    {
+      "id": "tentang_sk",
+      "category": "Tentang SK",
+      "display_label": "Tentang / Judul SK",
+      "value_type": "multiline_title",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["tentang sk", "judul sk"],
+      "exact_only_synonyms": ["tentang"],
+      "never_match": []
+    },
+    {
+      "id": "tahun_anggaran",
+      "category": "Tahun Anggaran",
+      "display_label": "Tahun Anggaran",
+      "value_type": "year_single",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["tahun anggaran"],
+      "exact_only_synonyms": [],
+      "never_match": ["tahun lahir"]
+    },
+    {
+      "id": "tahun_pelajaran",
+      "category": "Tahun Ajaran",
+      "display_label": "Tahun Pelajaran",
+      "value_type": "year_range",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["tahun pelajaran", "tahun ajaran"],
+      "exact_only_synonyms": ["ta", "tp"],
+      "never_match": ["output"]
+    },
+    {
+      "id": "tempat_penetapan",
+      "category": "Tempat Penetapan",
+      "display_label": "Tempat Penetapan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["ditetapkan di", "dikeluarkan di"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "tanggal_penetapan",
+      "category": "Tanggal Penetapan",
+      "display_label": "Tanggal Penetapan",
+      "value_type": "date_id",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["pada tanggal", "tanggal penetapan", "ditetapkan pada tanggal"],
+      "exact_only_synonyms": ["tanggal"],
+      "never_match": ["tanggal lahir", "tanggal masuk"]
+    }
+  ],
+  "zones": [
+    {
+      "zone_id": "judul_sk",
+      "start_anchor": "NOMOR",
+      "end_anchor": "TENTANG",
+      "max_paragraphs": 8,
+      "fields": ["nomor_sk", "tentang_sk"]
+    },
+    {
+      "zone_id": "penetapan_sk",
+      "anchors": ["Ditetapkan di", "Pada tanggal"],
+      "max_paragraphs": 15,
+      "fields": ["tempat_penetapan", "tanggal_penetapan", "jabatan_kepala", "nama_kepala", "nip_kepala"]
+    },
+    {
+      "zone_id": "lampiran_header",
+      "anchors": ["LAMPIRAN KEPUTUSAN", "Lampiran SK", "LAMPIRAN"],
+      "repeat": true,
+      "label_map": {
+        "Nomor": "nomor_sk",
+        "Tanggal": "tanggal_penetapan",
+        "Tentang": "tentang_sk"
+      }
+    }
+  ],
+  "sync": [
+    {
+      "field": "nomor_sk",
+      "source_zone": "judul_sk",
+      "target_zones": ["lampiran_header"]
+    },
+    {
+      "field": "tentang_sk",
+      "source_zone": "judul_sk",
+      "target_zones": ["lampiran_header"]
+    },
+    {
+      "field": "tanggal_penetapan",
+      "source_zone": "penetapan_sk",
+      "target_zones": ["lampiran_header"]
+    }
+  ]
+}

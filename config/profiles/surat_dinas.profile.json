@@ -1,0 +1,138 @@
+{
+  "schema_version": 2,
+  "profile_id": "surat_dinas",
+  "display_name": "Surat Dinas / Undangan",
+  "description": "Profil untuk Surat Dinas Biasa, Surat Undangan Rapat/Pertemuan, dan Surat Pemberitahuan",
+  "inherit": {
+    "from": "config/dictionary.default.json",
+    "fields": ["nama_lembaga", "jabatan_kepala", "nama_kepala", "nip_kepala"]
+  },
+  "auto_detect": {
+    "strong": ["Kepada Yth", "Perihal", "Hal", "SURAT UNDANGAN"],
+    "weak": ["Nomor", "Lampiran", "Sifat", "Hormat kami", "Wassalam", "Assalamu'alaikum"],
+    "negative": ["MEMUTUSKAN", "Menugaskan", "SURAT KEPUTUSAN", "BERITA ACARA", "PIHAK KESATU"]
+  },
+  "global_never_match": ["nomor rekening", "nomor telepon", "tanggal lahir", "tempat lahir"],
+  "global_ignore_exact": [],
+  "fields": [
+    {
+      "id": "nomor_surat",
+      "category": "Nomor Surat",
+      "display_label": "Nomor Surat",
+      "value_type": "doc_number",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["nomor surat", "no surat"],
+      "exact_only_synonyms": ["nomor", "no"],
+      "never_match": ["nomor rekening", "nomor induk pegawai"]
+    },
+    {
+      "id": "sifat_surat",
+      "category": "Sifat Surat",
+      "display_label": "Sifat Surat",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["sifat surat", "sifat"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "lampiran_surat",
+      "category": "Lampiran Surat",
+      "display_label": "Lampiran",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["lampiran surat"],
+      "exact_only_synonyms": ["lampiran"],
+      "never_match": ["lampiran keputusan"]
+    },
+    {
+      "id": "hal_surat",
+      "category": "Perihal Surat",
+      "display_label": "Hal / Perihal",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["perihal", "hal surat", "perihal surat"],
+      "exact_only_synonyms": ["hal"],
+      "never_match": []
+    },
+    {
+      "id": "tujuan_surat",
+      "category": "Tujuan Surat",
+      "display_label": "Kepada Yth",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["kepada yth", "kepada yth."],
+      "exact_only_synonyms": ["yth"],
+      "never_match": []
+    },
+    {
+      "id": "hari_tanggal_acara",
+      "category": "Waktu Kegiatan",
+      "display_label": "Hari, Tanggal Kegiatan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["hari, tanggal", "hari / tanggal", "hari/tanggal"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "waktu_acara",
+      "category": "Waktu Kegiatan",
+      "display_label": "Pukul / Waktu Kegiatan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["waktu", "pukul"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "tempat_acara",
+      "category": "Tempat Kegiatan",
+      "display_label": "Tempat Kegiatan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["tempat kegiatan"],
+      "exact_only_synonyms": ["tempat"],
+      "never_match": ["ditetapkan di", "tempat lahir"]
+    },
+    {
+      "id": "acara_kegiatan",
+      "category": "Agenda Kegiatan",
+      "display_label": "Acara Kegiatan",
+      "value_type": "text",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["acara kegiatan"],
+      "exact_only_synonyms": ["acara"],
+      "never_match": ["berita acara"]
+    }
+  ],
+  "zones": [
+    {
+      "zone_id": "meta_surat",
+      "anchors": ["Nomor", "Sifat", "Lampiran", "Hal", "Perihal", "Kepada Yth"],
+      "max_paragraphs": 12,
+      "fields": ["nomor_surat", "sifat_surat", "lampiran_surat", "hal_surat", "tujuan_surat"]
+    },
+    {
+      "zone_id": "agenda_acara",
+      "anchors": ["Hari, Tanggal", "Waktu", "Pukul", "Tempat", "Acara"],
+      "max_paragraphs": 8,
+      "fields": ["hari_tanggal_acara", "waktu_acara", "tempat_acara", "acara_kegiatan"]
+    },
+    {
+      "zone_id": "penutup_surat",
+      "anchors": ["Kepala Madrasah", "Kepala Sekolah", "Mengetahui"],
+      "max_paragraphs": 10,
+      "fields": ["jabatan_kepala", "nama_kepala", "nip_kepala"]
+    }
+  ]
+}

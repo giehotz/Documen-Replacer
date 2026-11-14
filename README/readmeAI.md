@@ -283,4 +283,25 @@ You must adhere strictly to these non-negotiable rules:
 
 ---
 
+## 8. Pola Rekayasa Tambahan (Hasil Audit & Ekspansi Modular)
+
+### A. Penanganan Run Paragraf Word & Hyperlink (`<w:hyperlink>`)
+* Properti standar `paragraph.runs` pada `python-docx` hanya mengambil run anak langsung dari `<w:p>` dan **mengabaikan teks di dalam `<w:hyperlink>`**.
+* Selalu gunakan fungsi pembantu `get_paragraph_runs(p)` di `document.paragraph_processor` yang mengiterasi `[Run(r, p) for r in p._p.xpath('.//w:r')]` agar teks tautan/URL/email ikut terpindai dan dapat disunting tanpa merusak XML tautan.
+
+### B. Pemetaan Elemen Paragraf Kanonikal (XML Object vs Python ID)
+* Jangan pernah menggunakan `id(p._element)` sebagai kunci kamus pemetaan paragraf, karena wrapper Python dapat di-instansiasi ulang dengan alamat memori berbeda.
+* Gunakan elemen XML langsung sebagai kunci: `{p._element: idx for idx, p in enumerate(iter_all_paragraphs(doc.element.body, doc))}` karena lxml mengimplementasikan `__hash__` dan `__eq__` berbasis pointer C internal.
+
+### C. Thread Safety Tkinter & Background Worker
+* Dilarang memanggil method widget Tkinter (`StringVar.get()`, `Entry.get()`, method dialog/view) langsung dari dalam *background thread* (`_worker_apply`, dsb.).
+* Seluruh nilai konfigurasi (`rules`, `mode`, folder) wajib dibaca di *main thread* dan diteruskan via argumen fungsi atau antrean pesan (`queue.Queue`).
+
+### D. Prinsip Non-Intrusif (*Strangler Fig*) untuk Multi-Domain
+* Kode inti yang sudah stabil di `core/`, `document/`, dan `gui/` dilindungi dari modifikasi destruktif (target 0% perubahan pada Fase 1).
+* Fitur jenis dokumen baru dikembangkan dalam paket mandiri (`domains/`, `workflows/`, `config/profiles/`) dengan kontrak data tunggal `ReplacementPlanItem`.
+* Setiap fase ekspansi wajib memiliki uji paritas (*parity test*) terhadap alur RPP eksisting untuk memastikan zero regression.
+
+---
+
 *Panduan ini disusun untuk menjamin kontinuitas, kualitas, keamanan data, dan kecepatan adaptasi bagi setiap AI Agen maupun pengembang yang memelihara proyek ini.*

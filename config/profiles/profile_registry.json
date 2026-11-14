@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "rpp_modul",
+      "display_name": "Perangkat Ajar (RPP / Modul Ajar)",
+      "file": "rpp_modul_ajar.profile.json",
+      "domain_class": "domains.rpp_domain_adapter.RPPDomainAdapter",
+      "description": "RPP, Modul Ajar, Silabus, Program Tahunan (PROTA), dan Program Semester (PROMES)",
+      "is_active": true
+    },
+    {
+      "id": "sk_keputusan",
+      "display_name": "Surat Keputusan (SK)",
+      "file": "sk_keputusan.profile.json",
+      "domain_class": "domains.sk.sk_domain.SKDomain",
+      "description": "SK Kepala Madrasah/Sekolah, SK Panitia, dan SK Pembagian Tugas",
+      "is_active": true
+    },
+    {
+      "id": "surat_dinas",
+      "display_name": "Surat Dinas / Undangan",
+      "file": "surat_dinas.profile.json",
+      "domain_class": "domains.surat_dinas.surat_dinas_domain.SuratDinasDomain",
+      "description": "Surat Dinas Keluar, Surat Undangan Rapat/Pertemuan, dan Surat Pemberitahuan",
+      "is_active": true
+    },
+    {
+      "id": "spt_penugasan",
+      "display_name": "Surat Perintah Tugas (SPT)",
+      "file": "spt_penugasan.profile.json",
+      "domain_class": "domains.spt.spt_domain.SPTDomain",
+      "description": "Surat Perintah Tugas Tunggal dan Kolektif (SPPD/Dinas)",
+      "is_active": true
+    },
+    {
+      "id": "berita_acara",
+      "display_name": "Berita Acara / MOU",
+      "file": "berita_acara.profile.json",
+      "domain_class": "domains.berita_acara.berita_acara_domain.BeritaAcaraDomain",
+      "description": "Berita Acara Serah Terima, Perjanjian Kerjasama, dan Pakta Integritas",
+      "is_active": true
+    }
+  ]
+}

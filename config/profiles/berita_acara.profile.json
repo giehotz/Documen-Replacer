@@ -1,0 +1,123 @@
+{
+  "schema_version": 2,
+  "profile_id": "berita_acara",
+  "display_name": "Berita Acara / MOU",
+  "description": "Profil untuk Berita Acara Serah Terima, Perjanjian Kerjasama, dan Pakta Integritas",
+  "inherit": {
+    "from": "config/dictionary.default.json",
+    "fields": ["nama_lembaga"]
+  },
+  "auto_detect": {
+    "strong": ["BERITA ACARA", "PAKTA INTEGRITAS", "SURAT PERJANJIAN"],
+    "weak": ["Pada hari ini", "PIHAK KESATU", "PIHAK KEDUA", "PIHAK PERTAMA", "Kedua belah pihak"],
+    "negative": ["MEMUTUSKAN", "Menimbang", "Mata Pelajaran", "Modul Ajar"]
+  },
+  "global_never_match": ["nomor rekening", "nomor telepon", "tanggal lahir", "tempat lahir"],
+  "global_ignore_exact": [],
+  "fields": [
+    {
+      "id": "nomor_ba",
+      "category": "Nomor Berita Acara",
+      "display_label": "Nomor Berita Acara",
+      "value_type": "doc_number",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["nomor berita acara", "no ba"],
+      "exact_only_synonyms": ["nomor", "no"],
+      "never_match": ["nomor rekening", "nomor induk pegawai"]
+    },
+    {
+      "id": "tanggal_ba",
+      "category": "Tanggal Berita Acara",
+      "display_label": "Tanggal Berita Acara",
+      "value_type": "date_id",
+      "match_mode": "word_boundary",
+      "priority": 50,
+      "synonyms": ["tanggal berita acara", "pada hari ini"],
+      "exact_only_synonyms": ["tanggal"],
+      "never_match": ["tanggal lahir"]
+    },
+    {
+      "id": "nama_pihak_kesatu",
+      "category": "Pihak Kesatu",
+      "display_label": "Nama Pihak Kesatu",
+      "value_type": "person_name",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["nama pihak kesatu", "nama pihak pertama"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "nip_pihak_kesatu",
+      "category": "Pihak Kesatu",
+      "display_label": "NIP Pihak Kesatu",
+      "value_type": "nip",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["nip pihak kesatu", "nip pihak pertama"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "jabatan_pihak_kesatu",
+      "category": "Pihak Kesatu",
+      "display_label": "Jabatan Pihak Kesatu",
+      "value_type": "role_title",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["jabatan pihak kesatu", "jabatan pihak pertama"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "nama_pihak_kedua",
+      "category": "Pihak Kedua",
+      "display_label": "Nama Pihak Kedua",
+      "value_type": "person_name",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["nama pihak kedua"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "nip_pihak_kedua",
+      "category": "Pihak Kedua",
+      "display_label": "NIP Pihak Kedua",
+      "value_type": "nip",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["nip pihak kedua"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    },
+    {
+      "id": "jabatan_pihak_kedua",
+      "category": "Pihak Kedua",
+      "display_label": "Jabatan Pihak Kedua",
+      "value_type": "role_title",
+      "match_mode": "word_boundary",
+      "priority": 60,
+      "synonyms": ["jabatan pihak kedua"],
+      "exact_only_synonyms": [],
+      "never_match": []
+    }
+  ],
+  "zones": [
+    {
+      "zone_id": "pihak_kesatu",
+      "start_anchor": "PIHAK KESATU",
+      "end_anchor": "PIHAK KEDUA",
+      "max_paragraphs": 8,
+      "fields": ["nama_pihak_kesatu", "nip_pihak_kesatu", "jabatan_pihak_kesatu"]
+    },
+    {
+      "zone_id": "pihak_kedua",
+      "start_anchor": "PIHAK KEDUA",
+      "end_anchor": "Kedua belah pihak",
+      "max_paragraphs": 8,
+      "fields": ["nama_pihak_kedua", "nip_pihak_kedua", "jabatan_pihak_kedua"]
+    }
+  ]
+}
