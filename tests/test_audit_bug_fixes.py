@@ -156,8 +156,12 @@ class TestAuditBugFixes(unittest.TestCase):
         from gui.app import SmartRPPReplacerApp
         import tkinter as tk
 
-        root = tk.Tk()
-        root.withdraw()
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception:
+            self.skipTest("Tkinter display tidak tersedia di lingkungan pengujian.")
+
         try:
             app = SmartRPPReplacerApp(root)
             rules = [{"label": "Nama Madrasah", "old": "MIN 1", "new": "MIN 2"}]

@@ -152,8 +152,12 @@ class TestPredictionLiveLog(unittest.TestCase):
         from unittest.mock import patch
         from gui.prediction_summary_dialog import PredictionSummaryDialog
 
-        root = tk.Tk()
-        root.withdraw()
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception:
+            self.skipTest("Tkinter display tidak tersedia di lingkungan pengujian.")
+
         try:
             dummy_rules = [
                 {"label": "Nama Madrasah", "old": "MIN 1 Contoh", "new": "MIN 2 Contoh"},
