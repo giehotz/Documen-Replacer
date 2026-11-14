@@ -344,6 +344,8 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.cb_kepala = ttk.Combobox(row_k_lib, state="readonly", width=22)
         self.cb_kepala.pack(side="left", fill="x", expand=True, padx=(4, 4))
         self.cb_kepala.bind("<<ComboboxSelected>>", lambda e: self._on_library_selected("kepala"))
+        from gui.ui_helpers import disable_combobox_mousewheel
+        disable_combobox_mousewheel(self.cb_kepala)
         ttk.Button(row_k_lib, text="+ Tambah", width=8, command=lambda: self._add_signature_dialog("kepala")).pack(side="left", padx=2)
         ttk.Button(row_k_lib, text="🗑 Hapus", width=7, command=lambda: self._delete_signature_dialog("kepala")).pack(side="left", padx=2)
 
@@ -379,6 +381,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.cb_guru = ttk.Combobox(row_g_lib, state="readonly", width=22)
         self.cb_guru.pack(side="left", fill="x", expand=True, padx=(4, 4))
         self.cb_guru.bind("<<ComboboxSelected>>", lambda e: self._on_library_selected("guru"))
+        disable_combobox_mousewheel(self.cb_guru)
         ttk.Button(row_g_lib, text="+ Tambah", width=8, command=lambda: self._add_signature_dialog("guru")).pack(side="left", padx=2)
         ttk.Button(row_g_lib, text="🗑 Hapus", width=7, command=lambda: self._delete_signature_dialog("guru")).pack(side="left", padx=2)
 
@@ -414,6 +417,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         self.cb_stempel = ttk.Combobox(row_s_lib, state="readonly", width=22)
         self.cb_stempel.pack(side="left", fill="x", expand=True, padx=(4, 4))
         self.cb_stempel.bind("<<ComboboxSelected>>", lambda e: self._on_library_selected("stempel"))
+        disable_combobox_mousewheel(self.cb_stempel)
         ttk.Button(row_s_lib, text="+ Tambah", width=8, command=lambda: self._add_signature_dialog("stempel")).pack(side="left", padx=2)
         ttk.Button(row_s_lib, text="🗑 Hapus", width=7, command=lambda: self._delete_signature_dialog("stempel")).pack(side="left", padx=2)
 

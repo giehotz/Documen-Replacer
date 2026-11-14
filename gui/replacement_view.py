@@ -11,6 +11,7 @@ import logging
 from typing import List, Dict, Any, Tuple, Optional, Callable
 
 from core.field_dictionary import FieldDictionary
+from gui.ui_helpers import disable_combobox_mousewheel
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,9 @@ class ReplacementView(ttk.LabelFrame):
         lbl = ttk.Combobox(col0_frame, values=field_vals)
         lbl.insert(0, label_text)
         lbl.pack(side="left", fill="x", expand=True)
+
+        # Mencegah perubahan label yang tidak disengaja akibat scroll wheel mouse
+        disable_combobox_mousewheel(lbl, scroll_callback=self._on_wheel)
 
         lbl_badge = ttk.Label(col0_frame, text="", width=2, font=("Segoe UI", 9, "bold"))
         lbl_badge.pack(side="right", padx=(2, 0))

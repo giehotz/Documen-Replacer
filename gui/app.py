@@ -14,6 +14,7 @@ from tkinter import ttk, filedialog, messagebox
 from typing import List, Tuple, Dict, Any, Set, Optional
 
 from core.version import APP_TITLE, APP_NAME
+from gui.ui_helpers import prevent_global_combobox_mousewheel
 from core.doc_compat_service import is_supported_word_file
 from core.replacement_engine import ReplacementEngine
 from core.field_dictionary import FieldDictionary
@@ -84,6 +85,9 @@ class SmartRPPReplacerApp:
         self.root.after(100, self._poll_queue)
 
     def _build_ui(self):
+        # 0. Menonaktifkan scroll wheel pada combobox secara global
+        prevent_global_combobox_mousewheel(self.root)
+
         # 0. Menu Bar Sistem
         self._build_menu_bar()
 

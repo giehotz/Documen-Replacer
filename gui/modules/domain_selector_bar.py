@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Optional, Dict, List
 
+from gui.ui_helpers import disable_combobox_mousewheel
+
 
 DOMAIN_OPTIONS = [
     ("auto", "🔍 Deteksi Otomatis (Semua Dokumen)"),
@@ -57,6 +59,7 @@ class DomainSelectorBar(ttk.Frame):
         )
         self.combo.grid(row=0, column=1, padx=(0, 10), pady=5, sticky="w")
         self.combo.bind("<<ComboboxSelected>>", self._on_combo_selected)
+        disable_combobox_mousewheel(self.combo)
 
         self.lbl_status = ttk.Label(self, text="", font=("Segoe UI", 8, "italic"), foreground="gray")
         self.lbl_status.grid(row=0, column=2, padx=(5, 5), pady=5, sticky="w")

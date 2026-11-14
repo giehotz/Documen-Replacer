@@ -286,6 +286,8 @@ class DictionaryManagerDialog(tk.Toplevel):
         c_vtype = ttk.Combobox(f, values=["text", "person_name", "nip", "year_range", "year_single", "date_place", "semester"], state="readonly")
         c_vtype.set("text")
         c_vtype.pack(fill="x", pady=(2, 8))
+        from gui.ui_helpers import disable_combobox_mousewheel
+        disable_combobox_mousewheel(c_vtype)
 
         ttk.Label(f, text="Sinonim Tambahan (pisahkan dengan koma):").pack(anchor="w")
         e_syns = ttk.Entry(f, width=40)
@@ -345,8 +347,8 @@ class UnknownLabelsDialog(tk.Toplevel):
     ):
         super().__init__(parent)
         self.title("🔍 Deteksi Label Dokumen Tak Dikenal")
-        self.geometry("740x500")
-        self.minsize(660, 420)
+        self.geometry("760x520")
+        self.minsize(680, 440)
         self.transient(parent)
         self.grab_set()
 
@@ -398,10 +400,10 @@ class UnknownLabelsDialog(tk.Toplevel):
         action_lf.pack(fill="x", padx=12, pady=(0, 6))
 
         row1 = ttk.Frame(action_lf)
-        row1.pack(fill="x")
+        row1.pack(fill="x", pady=(0, 8))
 
-        ttk.Label(row1, text="Petakan label:").pack(side="left")
-        self.lbl_selected_target = ttk.Label(row1, text="(Pilih salah satu baris di atas)", font=("Segoe UI", 9, "bold"))
+        ttk.Label(row1, text="Label Dokumen:").pack(side="left")
+        self.lbl_selected_target = ttk.Label(row1, text="(Pilih salah satu baris di atas)", font=("Segoe UI", 9, "bold"), foreground="#0056b3")
         self.lbl_selected_target.pack(side="left", padx=(6, 16))
 
         ttk.Label(row1, text="Ke Field Kamus:").pack(side="left")
@@ -414,12 +416,17 @@ class UnknownLabelsDialog(tk.Toplevel):
         if self.fields:
             self.combo_field.current(0)
         self.combo_field.pack(side="left", padx=(6, 10))
+        from gui.ui_helpers import disable_combobox_mousewheel
+        disable_combobox_mousewheel(self.combo_field)
 
-        self.btn_map = ttk.Button(row1, text="➕ Tambahkan ke Kamus", command=self._map_selected_label, state="disabled")
-        self.btn_map.pack(side="left")
+        row2 = ttk.Frame(action_lf)
+        row2.pack(fill="x")
 
-        self.btn_new_field = ttk.Button(row1, text="✨ + Buat Field Baru...", command=self._create_new_field_from_label, state="disabled")
-        self.btn_new_field.pack(side="left", padx=(6, 0))
+        self.btn_map = ttk.Button(row2, text="➕ Tambahkan ke Kamus", command=self._map_selected_label, state="disabled")
+        self.btn_map.pack(side="left", padx=(0, 8))
+
+        self.btn_new_field = ttk.Button(row2, text="✨ + Buat Field Baru Dari Label Ini...", command=self._create_new_field_from_label, state="disabled")
+        self.btn_new_field.pack(side="left")
 
         # Tombol Bawah
         bottom_bar = ttk.Frame(self, padding=(12, 6, 12, 12))
@@ -471,6 +478,8 @@ class UnknownLabelsDialog(tk.Toplevel):
         c_vtype = ttk.Combobox(f, values=["text", "person_name", "nip", "year_range", "year_single", "date_place", "semester"], state="readonly")
         c_vtype.set("text")
         c_vtype.pack(fill="x", pady=(2, 12))
+        from gui.ui_helpers import disable_combobox_mousewheel
+        disable_combobox_mousewheel(c_vtype)
 
         btn_row = ttk.Frame(f)
         btn_row.pack(fill="x")
