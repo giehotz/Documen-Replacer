@@ -9,6 +9,7 @@ from tkinter import ttk
 from tkinter import scrolledtext
 
 from core.version import APP_NAME, __version__, APP_TITLE, RELEASE_DATE
+from gui.ui_helpers import center_window
 
 GITHUB_PROFILE_URL = "https://github.com/giehotz"
 DEVELOPER_NAME = "@giehotz"
@@ -150,19 +151,7 @@ class AboutDialog(tk.Toplevel):
 
     def _center_window(self, parent: tk.Tk):
         """Memposisikan jendela dialog tepat di tengah jendela induk."""
-        self.update_idletasks()
-        try:
-            pw = parent.winfo_width()
-            ph = parent.winfo_height()
-            px = parent.winfo_rootx()
-            py = parent.winfo_rooty()
-            w = 780
-            h = 560
-            x = px + max(0, (pw - w) // 2)
-            y = py + max(0, (ph - h) // 2)
-            self.geometry(f"{w}x{h}+{x}+{y}")
-        except Exception:
-            pass
+        center_window(self, parent, 780, 560)
 
     def _build_ui(self, initial_tab: int):
         # 1. Header Frame

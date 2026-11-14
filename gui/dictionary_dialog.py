@@ -10,6 +10,7 @@ from typing import Dict, Optional, Callable, List
 import logging
 
 from core.field_dictionary import FieldDictionary, FieldDef
+from gui.ui_helpers import disable_combobox_mousewheel, center_window
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,8 @@ class DictionaryManagerDialog(tk.Toplevel):
         self._modified = False
 
         self._build_ui()
+        center_window(self, parent, 760, 520)
+        center_window(self, parent, 880, 620)
         if self.fields:
             self.field_listbox.selection_set(0)
             self._on_field_selected()
@@ -329,6 +332,7 @@ class DictionaryManagerDialog(tk.Toplevel):
 
         ttk.Button(btn_row, text="Simpan Field", command=_do_save).pack(side="right", padx=(6, 0))
         ttk.Button(btn_row, text="Batal", command=dlg.destroy).pack(side="right")
+        center_window(dlg, self, 460, 320)
 
 
 
@@ -358,6 +362,7 @@ class UnknownLabelsDialog(tk.Toplevel):
         self.fields = self.dictionary.fields()
 
         self._build_ui()
+        center_window(self, parent, 760, 520)
 
     def _build_ui(self):
         header = ttk.Frame(self, padding=(12, 10, 12, 5))
@@ -513,6 +518,7 @@ class UnknownLabelsDialog(tk.Toplevel):
 
         ttk.Button(btn_row, text="Simpan & Petakan", command=_do_save).pack(side="right", padx=(6, 0))
         ttk.Button(btn_row, text="Batal", command=dlg.destroy).pack(side="right")
+        center_window(dlg, self, 450, 260)
 
     def _map_selected_label(self):
         sel = self.tree.selection()

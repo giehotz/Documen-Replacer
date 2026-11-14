@@ -19,6 +19,7 @@ from core.document_predictor import (
     predict_rules_from_folder,
     collect_unknown_labels,
 )
+from gui.ui_helpers import center_window
 
 
 class PredictProgressDialog(tk.Toplevel):
@@ -60,6 +61,7 @@ class PredictProgressDialog(tk.Toplevel):
         self.grab_set()
 
         self._build_ui()
+        center_window(self, parent, 740, 520)
         self.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
         # Mulai thread worker pemindaian dokumen

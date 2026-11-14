@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Optional
 from core.validation_engine import ReplacementPlanItem, ConfidenceLevel
+from gui.ui_helpers import center_window
 
 
 class IntegratedPreviewDialog(tk.Toplevel):
@@ -25,6 +26,7 @@ class IntegratedPreviewDialog(tk.Toplevel):
 
         self._build_ui()
         self._populate_tree()
+        center_window(self, parent, 1000, 620)
 
     def _build_ui(self):
         # 1. Header & Deskripsi

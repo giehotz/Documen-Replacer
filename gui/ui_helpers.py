@@ -40,3 +40,43 @@ def prevent_global_combobox_mousewheel(root: tk.Tk) -> None:
         root.unbind_class("TCombobox", "<Button-5>")
     except Exception:
         pass
+
+
+def center_window(
+    window: tk.Toplevel,
+    parent: Optional[tk.Widget] = None,
+    width: Optional[int] = None,
+    height: Optional[int] = None
+) -> None:
+    """
+    Memposisikan jendela dialog (Toplevel / popup) tepat di tengah jendela induk (parent),
+    atau di tengah layar jika jendela induk tidak tersedia / diminimize.
+    """
+    try:
+        window.update_idletasks()
+        w = width or window.winfo_reqwidth() or window.winfo_width() or 600
+        h = height or window.winfo_reqheight() or window.winfo_height() or 400
+
+        top_parent = None
+        if parent:
+            try:
+                top_parent = parent.winfo_toplevel()
+            except Exception:
+                top_parent = parent
+
+        if top_parent and top_parent.winfo_viewable() and top_parent.winfo_width() > 100:
+            pw = top_parent.winfo_width()
+            ph = top_parent.winfo_height()
+            px = top_parent.winfo_rootx()
+            py = top_parent.winfo_rooty()
+            x = px + max(0, (pw - w) // 2)
+            y = py + max(0, (ph - h) // 2)
+        else:
+            sw = window.winfo_screenwidth()
+            sh = window.winfo_screenheight()
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+
+        window.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass

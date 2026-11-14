@@ -11,6 +11,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Dict, Any, Optional, Callable
 
+from gui.ui_helpers import center_window
+
 
 class PredictionSummaryDialog(tk.Toplevel):
     """
@@ -46,6 +48,7 @@ class PredictionSummaryDialog(tk.Toplevel):
         self.grab_set()
 
         self._build_ui()
+        center_window(self, parent, 820, 580)
 
     def _build_ui(self):
         # 1. Header Frame

@@ -17,6 +17,8 @@ from tkinter import ttk, filedialog, messagebox
 from typing import Dict, Any, Optional, List
 from PIL import Image, ImageTk
 
+from gui.ui_helpers import center_window
+
 from core.signature_image_service import (
     load_signature_settings,
     save_signature_settings,
@@ -162,6 +164,7 @@ class SignatureDesignerDialog(tk.Toplevel):
         self._build_ui()
         self._refresh_library_comboboxes()
         self._update_preview()
+        center_window(self, parent, 1100, 750)
 
     def _init_variables(self):
         self.current_orientation = "PORTRAIT"
@@ -826,6 +829,7 @@ class SignatureDesignerDialog(tk.Toplevel):
 
         ttk.Button(btn_row, text="Batal", command=dlg.destroy).pack(side="right", padx=(4, 0))
         ttk.Button(btn_row, text="Simpan ke Pustaka", command=_save_new).pack(side="right")
+        center_window(dlg, self, 480, 210)
 
     def _delete_signature_dialog(self, category: str):
         """Menghapus item tanda tangan/stempel yang sedang dipilih di combobox dari pustaka."""
@@ -969,6 +973,7 @@ class SignatureDesignerDialog(tk.Toplevel):
 
         ttk.Button(btn_row, text="Tutup", command=res_dlg.destroy).pack(side="right", padx=(4, 0))
         ttk.Button(btn_row, text="TERAPKAN REKOMENDASI GEOMETRI INI", command=_apply_recommendations).pack(side="right")
+        center_window(res_dlg, self, 520, 460)
 
     # =========================================================================
     # EVENT HANDLERS & ORIENTATION SWITCHING

@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from services.report_service import ReportService
 from utils.platform import open_path
+from gui.ui_helpers import center_window
 
 
 class ReportDialog(tk.Toplevel):
@@ -22,6 +23,7 @@ class ReportDialog(tk.Toplevel):
         self.output_dir = output_dir
 
         self._build_ui()
+        center_window(self, parent, 720, 540)
 
     def _build_ui(self):
         # 1. Header
