@@ -1,14 +1,15 @@
-# 🚀 Smart RPP Replacer & Word to PDF Converter
+# 🚀 Smart RPP & Document Replacer
 
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20(x64)-0078D6.svg)](https://microsoft.com/windows)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests Status](https://img.shields.io/badge/tests-70%2F70%20passing-brightgreen.svg)](tests/)
+[![Release: v1.1.0](https://img.shields.io/badge/release-v1.1.0-blue.svg)](CHANGELOG.md)
+[![Tests Status](https://img.shields.io/badge/tests-177%2B%20passing-brightgreen.svg)](tests/)
 [![Code Style: Clean](https://img.shields.io/badge/architecture-modular-success.svg)](core/)
 
-**Smart RPP Replacer & Word to PDF Converter** adalah aplikasi desktop modern berbasis Python untuk mengotomasi pengeditan dokumen perangkat pembelajaran guru (RPP, Modul Ajar, Silabus, Program Tahunan/PROTA, dan Program Semester/PROMES berformat `.docx` maupun `.doc` lawas) serta modul terintegrasi untuk konversi massal berkas Microsoft Word ke PDF.
+**Smart RPP & Document Replacer** adalah aplikasi desktop modern berbasis Python untuk mengotomasi pengeditan dokumen administrasi sekolah/madrasah dan perangkat pembelajaran guru (RPP, Modul Ajar, Surat Keputusan, Surat Dinas, SPT Penugasan, Berita Acara, serta generator massal Batch Mail Merge berformat `.docx` maupun `.doc` lawas) dengan modul terintegrasi untuk konversi massal berkas Microsoft Word ke PDF.
 
-Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), sistem kamus sinonim field terstruktur (*Field Dictionary*), desainer posisi tanda tangan digital tingkat lanjut (*Behind Text* untuk dokumen Potrait & Lanskap), dialog pratinjau interaktif, generator prediksi aturan otomatis, dan mesin konversi PDF massal berpresisi tinggi.
+Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), sistem kamus sinonim field terstruktur (*Field Dictionary*), pemilih domain naskah otomatis (*AutoClassifier*), generator massal *Mail Merge*, desainer posisi tanda tangan digital tingkat lanjut (*Behind Text* untuk dokumen Potrait & Lanskap), dialog pratinjau interaktif, generator prediksi aturan otomatis, dan mesin konversi PDF massal berpresisi tinggi.
 
 ---
 
@@ -21,9 +22,11 @@ Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), sist
    - [A. Menjalankan Aplikasi](#a-menjalankan-aplikasi)
    - [B. Alur Tab 1: Penggantian RPP & Tanda Tangan Digital](#b-alur-tab-1-penggantian-rpp--tanda-tangan-digital)
    - [C. Alur Tab 2: Konversi Massal Word ke PDF](#c-alur-tab-2-konversi-massal-word-ke-pdf)
+   - [D. Alur Tab 3: Generator Dokumen Massal (Mail Merge)](#d-alur-tab-3-generator-dokumen-massal-mail-merge)
 6. [Struktur Direktori Proyek](#-struktur-direktori-proyek)
 7. [Pengujian & Verifikasi (Test Suite)](#-pengujian--verifikasi-test-suite)
 8. [Tips & Pemecahan Masalah (Troubleshooting)](#-tips--pemecahan-masalah-troubleshooting)
+9. [Catatan Perubahan (Changelog)](CHANGELOG.md)
 
 ---
 
@@ -59,6 +62,16 @@ Aplikasi dilengkapi mesin pengenal konteks cerdas (*Context-Aware Engine*), sist
   - Penomoran otomatis nama berkas jika terjadi duplikasi nama di folder yang sama (mis. `RPP (2).pdf`).
   - Opsi lewati berkas jika PDF sudah ada sebelumnya.
 * **Antarmuka Interaktif & Anti-Freeze:** Daftar antrean dokumen berbasis tabel dengan indikator status berwarna (*Menunggu, Memproses, Berhasil, Gagal, Dilewati*), bilah progres persentase, dan kontrol *Cancel* yang aman.
+
+### 🗂️ Modul Multi-Domain & Generator Dokumen Massal (Mail Merge)
+* **Ekspansi Multi-Domain Terpadu:** Mendukung pemrosesan otomatis berbagai ragam naskah dinas madrasah/sekolah:
+  - **Surat Keputusan (SK):** Otomasi nomor SK, konsiderans menimbang/mengingat, diktum memutuskan, dan sinkronisasi lampiran SK.
+  - **Surat Dinas / Resmi:** Penggantian nomor surat, sifat, lampiran, perihal, tujuan, serta penyesuaian blok waktu & agenda acara.
+  - **Surat Perintah Tugas (SPT):** Penggantian nomor tugas, dasar surat perintah, serta pembaharuan daftar pegawai penugasan baik personal maupun kolektif.
+  - **Berita Acara / MOU:** Isolasi ketat pihak kesatu & kedua, serta sinkronisasi otomatis tanggal numerik ke format terbilang resmi Bahasa Indonesia.
+* **Klasifikasi Dokumen Otomatis (AutoClassifier):** Sistem cerdas menganalisis struktur naskah dan secara otomatis memilih profil domain dokumen tanpa konfigurasi rumit.
+* **Generator Dokumen Massal (Batch Mail Merge):** Membuat puluhan hingga ratusan berkas Word dan PDF siap cetak berbasis templat token (`{{TAG}}`, `<<TAG>>`, `[[TAG]]`) yang diintegrasikan langsung dengan data tabel CSV atau Microsoft Excel (`.xlsx`).
+* **Layanan Penomoran Surat Otomatis (Numbering Service):** Penghitung penomoran surat berurutan terstruktur dengan dukungan format dinamis, bulan Romawi (`{BULAN_ROMAWI}`), dan pembatalan (*rollback*) aman jika terjadi kegagalan.
 
 ---
 
@@ -299,7 +312,7 @@ Documen-Replacer/
 
 ## 🧪 Pengujian & Verifikasi (Test Suite)
 
-Aplikasi memiliki **98 unit test otomatis** (dengan 4 pengujian di-skip pada lingkungan tanpa Microsoft Word COM / LibreOffice) dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
+Aplikasi memiliki **178 unit test otomatis** (dengan 11 pengujian di-skip pada lingkungan tanpa display GUI Tkinter) dengan cakupan menyeluruh untuk menjamin keandalan kode sebelum digunakan pada berkas penting.
 
 Untuk menjalankan seluruh unit test suite:
 ```powershell
@@ -308,8 +321,8 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 Hasil uji yang diharapkan:
 ```text
-Ran 98 tests in ~35s
-OK (skipped=4)
+Ran 178 tests in ~90s
+OK (skipped=11)
 ```
 
 ### Rincian Cakupan Pengujian:

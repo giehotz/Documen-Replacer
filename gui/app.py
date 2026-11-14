@@ -13,6 +13,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import List, Tuple, Dict, Any, Set, Optional
 
+from core.version import APP_TITLE
 from core.doc_compat_service import is_supported_word_file
 from core.replacement_engine import ReplacementEngine
 from core.field_dictionary import FieldDictionary
@@ -70,7 +71,7 @@ def resolve_output_subfolder(input_path: str, base_docs_dir: str = "") -> str:
 class SmartRPPReplacerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Smart RPP Replacer & Word to PDF Converter")
+        self.root.title(APP_TITLE)
         self.root.geometry("1020x820")
         self.root.minsize(880, 680)
 
